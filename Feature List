@@ -1,0 +1,36 @@
+Feature List - Smart Contract Governance for Stocks (Corporate voting Shares
+
+--
+
+Dividendenausschüttung
+Kapitalerhöhung
+Übertragbarkeit
+Abstimmbarkeit von Erweiterungen 
+Mergers
+
+--
+## Guide for programming smart contracts
+Security -secureMath, 
+
+StateMachine Design Principles,
+reentrancy - example next.election ,
+
+Constant gas usage, algos mit wenigen Iterations,
+
+
+--
+
+TODO:
+
+change to bytes4
+Election EdgeCases
+truffle compile chain test
+dapp 
+frontend
+
+--
+Open remix ide 
+node_modules/.bin/remixd -s backend/ https://remix.ethereum.org 
+
+--
+Truffle 

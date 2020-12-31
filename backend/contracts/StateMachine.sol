@@ -23,14 +23,18 @@ contract StateMachine {
     constructor() public {        
         lastTime = block.timestamp;
     }
-    
-    function registerState(string memory name, bytes4 stateSig, function() fu, bytes4 nextState) internal {
+
+    function registerState(string memory name, bytes4 stateSig) public  {
         require(stateSig != 0);
         if(!currentStateSet) {
            currentStateSet = true;
            currentState = stateSig;
         }
         stateNames[stateSig] = name;
+    }
+
+    function registerState(string memory name, bytes4 stateSig, function() fu, bytes4 nextState) internal {
+        registerState(name, stateSig);
         transitions[stateSig].push(Transition(fu, nextState));
     }
 
@@ -50,13 +54,13 @@ contract StateMachine {
         
         // Reject all calls coming from outside the contract
         require(msg.sender == address(this), "Transition must be called from inside the State Machine");
-        
+
         _;
         
         for(uint i=0; i < transitions[currentState].length; i++) {
             globalReturn = true; 
             transitions[currentState][i].fu();
-            
+
             if(globalReturn) {
                 currentState = transitions[currentState][i].nextState;
                 break;
@@ -64,8 +68,8 @@ contract StateMachine {
         }
     }
     
-    modifier cond(bool condition) {
-        if(condition) {
+    modifier condition(bool cond) {
+        if(cond) {
             _;
         } else {
             globalReturn = false;
@@ -90,42 +94,4 @@ contract StateMachine {
         
         taken = false;
     }
-    
-}
-
-contract SimpleStateMachineExample is StateMachine {
-    
-    bool public clickAck = false;
-    
-    event Trans(string);
-
-    constructor() public StateMachine()  {
-        registerState("State1", this.state1.selector, a1, this.state2.selector);
-        registerState("State2", this.state2.selector, b1, this.state1.selector);
-    }
-    
-    // Inputs::
-    function click() public {
-        clickAck = !clickAck;
-    }
-    
-    // Conditions::
-    function getClick() internal returns (bool) {
-        return clickAck;
-    }
-    
-    // Transitions::
-    function a1() cond(getClick()) internal {
-        emit Trans("a1");
-    }
-
-    function b1() internal {    // == cond(true) 
-        emit Trans("b1");
-    }
-
-    // States::
-    function state1() stateTransition(0) external {}
-    
-    function state2() stateTransition(0) external {}
-    
 }

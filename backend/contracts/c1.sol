@@ -1,10 +1,10 @@
 pragma solidity ^0.6.3;
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "./state.sol";
-import "./access.sol";
-import "./election.sol";
-import "./erc20share.sol";
+import "./StateMachine.sol";
+import "./Access.sol";
+import "./Election.sol";
+import "./ERC20share.sol";
 
 contract SimpleICO {
 
@@ -89,7 +89,7 @@ contract V1 is StateMachine, AccessControl, ERC20share {
 
     // constructor sets Company Name, Proposal for SB
     constructor(uint initialSupply, string memory _companyName, string memory _symbol, uint _numberOfSupervisors) 
-    AccessControl() StateMachine(transitionsSelectors) ERC20share(initialSupply, _companyName, _symbol) public {
+    AccessControl() StateMachine() ERC20share(initialSupply, _companyName, _symbol) public {
         require(_numberOfSupervisors%2 == 1);
         numberOfSupervisors = _numberOfSupervisors;
     }

@@ -1,21 +1,8 @@
 pragma solidity ^0.6.3;
-import "./state.sol";
-import "./access.sol";
+import "./StateMachine.sol";
+import "./Access.sol";
 
 contract Election is AccessControl, StateMachine {
-
-    enum State {
-        _,                              // FailState
-        REGISTER,
-        PROPOSE,
-        VOTE,
-        TALLY,
-        ELECTION_FAILED
-    }
-
-    bytes4[] transitionsSelectors = [this.endRegister.selector,
-                                    this.endPropose.selector, 
-                                    this.endVote.selector];
 
     enum Role {
         ADMIN,
@@ -37,7 +24,6 @@ contract Election is AccessControl, StateMachine {
     uint[] VOTER = [uint(Role.VOTER)];
     uint[] PROPOSER = [uint(Role.PROPOSER), uint(Role.VOTER)];
 
-
     Proposal[] proposals;
     mapping(address => bool) internal proposed;
     mapping(bytes32 => bool) proposeExists;
@@ -49,31 +35,58 @@ contract Election is AccessControl, StateMachine {
     string public electionPurpose;
 
 
-    constructor(uint _numberToElect, string memory _electionPurpose) AccessControl() StateMachine(transitionsSelectors) public {
+    constructor(uint _numberToElect, string memory _electionPurpose) AccessControl() StateMachine() public {
         require(_numberToElect >= 1);
         numberToElect = _numberToElect;
         electionPurpose = _electionPurpose;
         AccessControl.addRole(uint(Role.ADMIN), msg.sender);
+        
+
+        // States
+        registerState("REGISTER", this.register.selector, register_propose, this.propose.selector);
+
+        registerState("PROPOSE", this.propose.selector, propose_failed, this.vote.selector);
+        registerState("PROPOSE", this.propose.selector, propose_vote, this.vote.selector);
+        
+        registerState("VOTE", this.vote.selector, vote_failed, this.failed.selector);
+        registerState("VOTE", this.vote.selector, vote_counted, this.counted.selector);
+        
+
+        // End States
+        registerState("COUNTED", this.counted.selector);
+        registerState("FAILED",this.failed.selector);
     }
-    
-    //
-    function registerVoter(address voterAddr, uint weight) access(ADMIN) state(uint(State.REGISTER)) public {
+
+
+    // State::REGISTER
+    function register() stateTransition(0) external {}
+
+    // Transition
+    function register_propose() private {}
+
+    function registerVoter(address voterAddr, uint weight) access(ADMIN) state(this.register.selector) public {
         AccessControl.addRole(uint(Role.VOTER), voterAddr);
         voters[voterAddr] = Voter(false, weight);
     }
 
-    // 
-    function registerProposer(address proposerAddr) access(ADMIN) state(uint(State.REGISTER)) public {
+
+    // State::PROPOSE
+    function propose() stateTransition(30) external {}
+
+    // Transition
+    function propose_vote() condition(true) private {}
+    function propose_failed() condition(numberToElect > proposals.length) private {}
+
+    function registerProposer(address proposerAddr) access(ADMIN) state(this.propose.selector) public {
         AccessControl.addRole(uint(Role.PROPOSER), proposerAddr);
     }
 
-    // 
-    function excludeFromPropose(bytes32 Data) access(ADMIN) state(uint(State.REGISTER)) public {
+    function excludeFromPropose(bytes32 Data) access(ADMIN) state(this.propose.selector) public {
         proposeExists[Data] = true; 
     }
 
-    // returns newly proposed candidate ID 
-    function proposeCandidate(bytes32 proposalData) access(PROPOSER) state(uint(State.PROPOSE)) public returns(uint) {
+    // Rturns newly proposed candidate ID 
+    function proposeCandidate(bytes32 proposalData) access(PROPOSER) state(this.propose.selector) public returns(uint) {
         require(!proposed[msg.sender]);
         proposed[msg.sender] = true;                // only one proposal per address to avoid spam
 
@@ -82,12 +95,30 @@ contract Election is AccessControl, StateMachine {
         proposals.push(Proposal(0,proposalData));
         return proposals.length - 1;
     }
+    
+    //State::VOTE
+    function vote() stateTransition(30) external {}
+
+    // Transitions
+    function vote_counted() condition(true) private {}
+    function vote_failed() condition(proposals[maxVotesIndices[0]].vote >= 0) private {}
 
     // Vote for CandidateID
-    function vote(uint candidateNumber) access(VOTER) state(uint(State.VOTE)) public {
+    function voteCandidate(uint candidateNumber) access(VOTER) state(this.vote.selector) public {
         require(!voters[msg.sender].voted);
         proposals[candidateNumber].vote += voters[msg.sender].weight;
         voters[msg.sender].voted == true;
+    }
+
+    //State::COUNTED
+    function counted() stateTransition(0) external {}
+
+    //State::FAILED
+    function failed() stateTransition(0) external {}
+
+    //Redefinition of next to be only accessible for ADMIN
+    function next() access(ADMIN) override public {
+        StateMachine.next();
     }
 
     //
@@ -97,23 +128,13 @@ contract Election is AccessControl, StateMachine {
         return candidateData;
     }
 
-    function finished() public returns(bool) {
-        if (State(currentState) == State.TALLY) return true;
-        return false;
-    }
-    
-    function failed() public returns(bool) {
-        if (State(currentState) == State.ELECTION_FAILED) return true;
-        return false;
-    }
-
     //
     function getMaxVotesIndices() public returns(uint[] memory) {
         return maxVotesIndices;
     }
 
     // returns an array of indeces with first to nth greatest proposal if several proposals on nth place have same vote the array is extended 
-    function makeMaxVotesIndices(uint n) state(uint(State.TALLY)) internal returns (uint[] memory)  {
+    function makeMaxVotesIndices(uint n) state(this.counted.selector) internal returns (uint[] memory)  {
         if(proposals.length < n) n = proposals.length;
 
         maxVotesIndices = new uint[](n);
@@ -142,29 +163,25 @@ contract Election is AccessControl, StateMachine {
                 maxVotesIndices.push(i); 
             }
         }
-  
         return maxVotesIndices;
     }
 
-    // make next() only callable by admin
-    //TODO: remove access 
-    function next() access(ADMIN) override public {
-        StateMachine.next();
-    }
-    
-    // State Transition Functions - called by contract itself
-    function endRegister() stateTransition(0) external returns (uint)  {
-        return uint(State.PROPOSE);
-    }
 
-    function endPropose() stateTransition(30) external returns (uint)  {
+
+/*
+    // State Transition Functions - called by contract itself
+    
+    // State::
+    function register() stateTransition(0) external {}
+
+    function propose() stateTransition(30) external {
         //Fail state if not enougth proposed candidates
         if(numberToElect > proposals.length) return uint(State.ELECTION_FAILED);
 
         return uint(State.VOTE);
     }
-
-    function endVote() stateTransition(30) external returns (uint)  {
+    
+    function vote() stateTransition(30) external {
         makeMaxVotesIndices(numberToElect);
 
         // Check if at least one vote was given
@@ -173,4 +190,8 @@ contract Election is AccessControl, StateMachine {
         return uint(State.TALLY);
     }
 
+    function counted() stateTransition(0) external {}
+
+    function failed() stateTransition(0) external {}
+*/
 }
