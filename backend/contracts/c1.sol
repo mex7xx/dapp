@@ -1,4 +1,5 @@
 pragma solidity ^0.6.3;
+
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./StateMachine.sol";
@@ -9,7 +10,7 @@ import "./ERC20share.sol";
 contract SimpleICO {
 
 }
-
+/*
 // ToDo: Make funktion voteable so that if quorum is reached function can be called once!
 // with help of Access control and StateMachine
 contract CompanyToken is ERC20 {
@@ -392,3 +393,5 @@ contract V1 is StateMachine, AccessControl, ERC20share {
     }
 
 }
+
+*/

@@ -8,7 +8,7 @@ contract StateMachine {
         bytes4 nextState;
     }
     
-    event NewStateEntered(string); 
+    event NewStateEntered(bytes4, string); 
     
     bytes4 public currentState;
     mapping(bytes4 => string) public stateNames;
@@ -24,7 +24,7 @@ contract StateMachine {
         lastTime = block.timestamp;
     }
 
-    function registerState(string memory name, bytes4 stateSig) public  {
+    function registerState(string memory name, bytes4 stateSig) internal {
         require(stateSig != 0);
         if(!currentStateSet) {
            currentStateSet = true;
@@ -77,7 +77,7 @@ contract StateMachine {
     }
     
     // Drives the State Machine - callable by everybody 
-    function next() public {
+    function next() virtual public {
         require(!taken); // Reentrancy Protection 
         
         bytes4 oldState = currentState;
@@ -89,7 +89,7 @@ contract StateMachine {
         
         if(currentState != oldState) {
             lastTime = block.timestamp;                         // set if State Transition happend
-            emit NewStateEntered(stateNames[currentState]);
+            emit NewStateEntered(currentState, stateNames[currentState]);
         }
         
         taken = false;

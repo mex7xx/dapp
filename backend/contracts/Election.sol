@@ -34,29 +34,25 @@ contract Election is AccessControl, StateMachine {
     uint internal numberToElect;
     string public electionPurpose;
 
-
     constructor(uint _numberToElect, string memory _electionPurpose) AccessControl() StateMachine() public {
         require(_numberToElect >= 1);
         numberToElect = _numberToElect;
         electionPurpose = _electionPurpose;
         AccessControl.addRole(uint(Role.ADMIN), msg.sender);
-        
 
         // States
         registerState("REGISTER", this.register.selector, register_propose, this.propose.selector);
 
-        registerState("PROPOSE", this.propose.selector, propose_failed, this.vote.selector);
+        registerState("PROPOSE", this.propose.selector, propose_failed, this.failed.selector);
         registerState("PROPOSE", this.propose.selector, propose_vote, this.vote.selector);
         
         registerState("VOTE", this.vote.selector, vote_failed, this.failed.selector);
         registerState("VOTE", this.vote.selector, vote_counted, this.counted.selector);
-        
 
         // End States
         registerState("COUNTED", this.counted.selector);
         registerState("FAILED",this.failed.selector);
     }
-
 
     // State::REGISTER
     function register() stateTransition(0) external {}
@@ -69,18 +65,17 @@ contract Election is AccessControl, StateMachine {
         voters[voterAddr] = Voter(false, weight);
     }
 
-
     // State::PROPOSE
     function propose() stateTransition(30) external {}
 
     // Transition
-    function propose_vote() condition(true) private {}
     function propose_failed() condition(numberToElect > proposals.length) private {}
+    function propose_vote() condition(true) private {}
 
     function registerProposer(address proposerAddr) access(ADMIN) state(this.propose.selector) public {
         AccessControl.addRole(uint(Role.PROPOSER), proposerAddr);
     }
-
+    
     function excludeFromPropose(bytes32 Data) access(ADMIN) state(this.propose.selector) public {
         proposeExists[Data] = true; 
     }
@@ -95,13 +90,15 @@ contract Election is AccessControl, StateMachine {
         proposals.push(Proposal(0,proposalData));
         return proposals.length - 1;
     }
-    
+
     //State::VOTE
-    function vote() stateTransition(30) external {}
+    function vote() stateTransition(30) external {
+        makeMaxVotesIndices(numberToElect);
+    }
 
     // Transitions
-    function vote_counted() condition(true) private {}
-    function vote_failed() condition(proposals[maxVotesIndices[0]].vote >= 0) private {}
+    function vote_failed() condition(!(proposals[maxVotesIndices[0]].vote > 0)) private {}
+    function vote_counted() condition(proposals[maxVotesIndices[0]].vote > 0) private {}
 
     // Vote for CandidateID
     function voteCandidate(uint candidateNumber) access(VOTER) state(this.vote.selector) public {
@@ -115,6 +112,7 @@ contract Election is AccessControl, StateMachine {
 
     //State::FAILED
     function failed() stateTransition(0) external {}
+
 
     //Redefinition of next to be only accessible for ADMIN
     function next() access(ADMIN) override public {
@@ -166,32 +164,4 @@ contract Election is AccessControl, StateMachine {
         return maxVotesIndices;
     }
 
-
-
-/*
-    // State Transition Functions - called by contract itself
-    
-    // State::
-    function register() stateTransition(0) external {}
-
-    function propose() stateTransition(30) external {
-        //Fail state if not enougth proposed candidates
-        if(numberToElect > proposals.length) return uint(State.ELECTION_FAILED);
-
-        return uint(State.VOTE);
-    }
-    
-    function vote() stateTransition(30) external {
-        makeMaxVotesIndices(numberToElect);
-
-        // Check if at least one vote was given
-        if (proposals[maxVotesIndices[0]].vote >= 0) return uint(State.ELECTION_FAILED);
-
-        return uint(State.TALLY);
-    }
-
-    function counted() stateTransition(0) external {}
-
-    function failed() stateTransition(0) external {}
-*/
 }

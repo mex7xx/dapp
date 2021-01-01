@@ -30,7 +30,10 @@ frontend
 
 --
 Open remix ide 
-node_modules/.bin/remixd -s backend/ https://remix.ethereum.org 
+node_modules/.bin/remixd -s backend/ https://remix.ethereum.org
 
 --
 Truffle 
+
+--
+
