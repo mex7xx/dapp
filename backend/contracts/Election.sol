@@ -120,14 +120,14 @@ contract Election is AccessControl, StateMachine {
     }
 
     //
-    function getCandidate(uint i) public returns(bytes32) {
+    function getCandidate(uint i) public view returns(bytes32) {
         bytes32 candidateData = proposals[i].data;
         require(candidateData != 0);
         return candidateData;
     }
 
     //
-    function getMaxVotesIndices() public returns(uint[] memory) {
+    function getMaxVotesIndices() public view returns(uint[] memory) {
         return maxVotesIndices;
     }
 

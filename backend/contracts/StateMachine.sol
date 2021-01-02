@@ -14,7 +14,6 @@ contract StateMachine {
     mapping(bytes4 => string) public stateNames;
     mapping(bytes4 => Transition[]) transitions;
     
-    
     bool globalReturn;
     uint lastTime;
     bool currentStateSet = false;
