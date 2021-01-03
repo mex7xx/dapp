@@ -68,9 +68,14 @@ contract Election is AccessControl, StateMachine {
     // State::PROPOSE
     function propose() stateTransition(30) external {}
 
+    // Condition
+    function enougthProposals() internal view returns (bool) {
+        return numberToElect > proposals.length; 
+    }
+
     // Transition
-    function propose_failed() condition(numberToElect > proposals.length) private {}
-    function propose_vote() condition(true) private {}
+    function propose_failed() condition(enougthProposals) private {}
+    function propose_vote() private {}
 
     function registerProposer(address proposerAddr) access(ADMIN) state(this.propose.selector) public {
         AccessControl.addRole(uint(Role.PROPOSER), proposerAddr);
@@ -80,10 +85,10 @@ contract Election is AccessControl, StateMachine {
         proposeExists[Data] = true; 
     }
 
-    // Rturns newly proposed candidate ID 
+    // Returns newly proposed candidate ID 
     function proposeCandidate(bytes32 proposalData) access(PROPOSER) state(this.propose.selector) public returns(uint) {
         require(!proposed[msg.sender]);
-        proposed[msg.sender] = true;                // only one proposal per address to avoid spam
+        proposed[msg.sender] = true;                    // only one proposal per address to avoid spam
 
         require(!proposeExists[proposalData]);
         proposeExists[proposalData] = true; 
@@ -95,10 +100,14 @@ contract Election is AccessControl, StateMachine {
     function vote() stateTransition(30) external {
         makeMaxVotesIndices(numberToElect);
     }
+    // Condition
+    function notVoted() internal view returns (bool) {
+        return proposals[maxVotesIndices[0]].vote == 0;
+    }
 
     // Transitions
-    function vote_failed() condition(!(proposals[maxVotesIndices[0]].vote > 0)) private {}
-    function vote_counted() condition(proposals[maxVotesIndices[0]].vote > 0) private {}
+    function vote_failed() condition(notVoted) private {}
+    function vote_counted() private {}
 
     // Vote for CandidateID
     function voteCandidate(uint candidateNumber) access(VOTER) state(this.vote.selector) public {

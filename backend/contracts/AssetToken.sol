@@ -115,32 +115,32 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
     function start() stateTransition(0) external {}
     
     //Condition
-    function daysPassedLastElection(uint daysPassed) internal view returns (bool)  {
-        lastElection +  daysPassed * 1 days <= block.timestamp;
-        return true;
-    }
-
-    function reElection() internal view returns (bool) { 
+    function reElectionORYearPassed() internal view returns (bool) { 
         uint count =0;
         for(uint i= 0; i < supervisors.length; i++) {
             if(reelection[supervisors[i]]) count++; 
-        } 
-        return numberOfSupervisors/2 < count; 
+        }
+        bool reElection = numberOfSupervisors/2 < count;
+        
+        bool yearPassed = lastElection + 365 days <= block.timestamp;
+
+        return reElection || yearPassed;
     }
 
-    function daysPassedLastDividend(uint daysPassed) internal view returns (bool)  {
-        lastTimeDividend + daysPassed * 1 days <= block.timestamp;
-        return true;
+    function proposedANDYearPassed() internal view returns (bool)  {
+        bool lastTime = lastTimeDividend + 365 days <= block.timestamp;
+        return proposed && lastTime;
     }
+
 
     // Transition 
-    function start_electionStarted() condition(daysPassedLastElection(365) || reElection()) internal {
+    function start_electionStarted() condition(reElectionORYearPassed) internal {
             Election e = setUpElectionSupervisor();
             e.next();
     }
 
     // TODO What if CEO dosen't propose Dividend >> Supervisor can start reelection
-    function start_dividendProposed() condition(daysPassedLastDividend(365) && proposed) internal {
+    function start_dividendProposed() condition(proposedANDYearPassed) internal {
         delete proposed; 
     }
 
@@ -149,9 +149,17 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
     function electionStarted() stateTransition(0) external{
         election.next();
     }
+
+    //Condition
+    function electionFailed() view internal returns (bool) {
+        return election.currentState() == election.failed.selector;
+    }
+    function electionFailedANDnewSupervisor() view internal returns (bool) {
+        return election.currentState() == election.counted.selector && newSupervisors.length < numberOfSupervisors;
+    }
     
     // Transition
-    function electionStarted_electionStarted() condition(election.currentState() == election.failed.selector) internal {
+    function electionStarted_electionStarted() condition(electionFailed) internal {
         Election e = setUpElectionSupervisor();
         // exclude already Voted Supervisors
         for(uint i= 0; i < newSupervisors.length; i++) {
@@ -160,7 +168,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         e.next();
     }
 
-    function electionStarted_electionStarted1() condition(election.currentState() == election.counted.selector && newSupervisors.length < numberOfSupervisors) internal {
+    function electionStarted_electionStarted1() condition(electionFailed) internal {
         uint index = election.getMaxVotesIndices()[0];
         address supervisor = address(bytes20(election.getCandidate(index)));
         newSupervisors.push(supervisor);
@@ -173,7 +181,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         e.next();
     }
 
-    function electionStarted_ceoElectionStarted() condition(election.currentState() == election.counted.selector && newSupervisors.length == numberOfSupervisors) internal {
+    function electionStarted_ceoElectionStarted() condition(electionFailedANDnewSupervisor) internal {
 
         uint index = election.getMaxVotesIndices()[0];
         address supervisor = address(bytes20(election.getCandidate(index)));
@@ -195,8 +203,21 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         election.next();
     }
 
+    // Condition
+    function electionFailedANDfailCountnotReached() view internal returns (bool) {
+        return election.currentState() == election.counted.selector && failCountCEO < 2;
+    }
+
+    function electionFailedANDfailCountReachedORTimeout() view internal returns (bool) {
+        return election.currentState() == election.failed.selector && failCountCEO >= 2 || timeCEOstarted + 1 days < block.timestamp;
+    }
+
+    function electionCounted() view internal returns (bool){
+        return election.currentState() == election.counted.selector;
+    }
+
     // Transition
-    function ceoElectionStarted_ceoElectionStarted() condition(election.currentState() == election.failed.selector && failCountCEO < 2) internal {
+    function ceoElectionStarted_ceoElectionStarted() condition(electionFailedANDfailCountnotReached) internal {
         failCountCEO++;
         Election e = setUpElectionCEO();
         // Supervisors can't be elected as CEO
@@ -207,7 +228,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
     }
 
     // What if Supervisors are evil and don't want to elect a new CEO ?? ->> make this a reset event >>TIMEOUT
-    function ceoElectionStarted_start() condition(election.currentState() == election.failed.selector && failCountCEO == 2 || timeCEOstarted + 1 days < block.timestamp) internal {
+    function ceoElectionStarted_start() condition(electionFailedANDfailCountReachedORTimeout) internal {
         
         // TODO: reset Election Cycle Result DONE!
         delete newSupervisors;
@@ -217,7 +238,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         failCountCEO=0;
     }
 
-    function ceoElectionStarted_start1() condition(election.currentState() == election.counted.selector) internal {
+    function ceoElectionStarted_start1() condition(electionCounted) internal {
         uint index = election.getMaxVotesIndices()[0];
         address newCEO = address(bytes20(election.getCandidate(index)));
         addRole(uint(Role.CEO), newCEO);
@@ -263,12 +284,16 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         return 0;
     }
 
-    function timeoutDividend() internal view returns(bool) {
-        return block.timestamp > dividendStartedTime + 1 days;
+    function approvalDividendNotReachedORTimeout() internal view returns (bool) {
+        return approvalDividendReached() == 1 || block.timestamp > dividendStartedTime + 1 days;
+    }
+
+    function approvalDividend() internal view returns (bool) {
+        return approvalDividendReached() == 2;
     }
     
     // Transition
-    function dividendProposed_start() condition(approvalDividendReached() == 1 || timeoutDividend()) internal {
+    function dividendProposed_start() condition(approvalDividendNotReachedORTimeout) internal {
         for(uint i=0; i < supervisors.length; i++) {
             approved[supervisors[i]] = 0; 
         }
@@ -280,13 +305,15 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         delete proposedDividend;
         delete proposed;
     }
-    function dividendProposed_start1() condition(approvalDividendReached() == 2 ) internal {
+
+    function dividendProposed_start1() condition(approvalDividend) internal {
         lastTimeDividend = block.timestamp;
 
         for(uint i=0; i < Shareholders.length(); i++) {
             dividend[Shareholders.at(i)] = balanceOf(Shareholders.at(i)) * proposedDividend ;
         }
     }
+
 
 
     // Private Funcitons
@@ -316,4 +343,5 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         }
         return election;
     }
+
 }

@@ -17,14 +17,14 @@ contract AccessControl {
         emit AccessAllowed(msg.sender);
         _;
     }
-
-    function hasRole(uint _role, address _add) internal returns(bool) {
-        return associatedRoles[_add][_role];
-    }
+    
     function addRole(uint _role, address _to) internal {
         associatedRoles[_to][_role] = true;
     }
     function removeRole(uint _role, address _from) internal {
         associatedRoles[_from][_role] = false;
+    }
+    function hasRole(uint _role, address _add) internal view returns(bool) {
+        return associatedRoles[_add][_role];
     }
 }

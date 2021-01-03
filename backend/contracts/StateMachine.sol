@@ -14,6 +14,7 @@ contract StateMachine {
     mapping(bytes4 => string) public stateNames;
     mapping(bytes4 => Transition[]) transitions;
     
+    
     bool globalReturn;
     uint lastTime;
     bool currentStateSet = false;
@@ -59,16 +60,17 @@ contract StateMachine {
         for(uint i=0; i < transitions[currentState].length; i++) {
             globalReturn = true; 
             transitions[currentState][i].fu();
-
+            
             if(globalReturn) {
                 currentState = transitions[currentState][i].nextState;
+                
                 break;
             }
         }
     }
     
-    modifier condition(bool cond) {
-        if(cond) {
+    modifier condition(function() view returns (bool) cond ) {
+        if(cond()) {
             _;
         } else {
             globalReturn = false;
