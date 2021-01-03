@@ -207,7 +207,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
     }
 
     // What if Supervisors are evil and don't want to elect a new CEO ?? ->> make this a reset event >>TIMEOUT
-    function ceoElectionStarted_start() condition(election.currentState() == election.failed.selector && failCountCEO == 2 || timeCEOstarted + 1 days >= block.timestamp) internal {
+    function ceoElectionStarted_start() condition(election.currentState() == election.failed.selector && failCountCEO == 2 || timeCEOstarted + 1 days < block.timestamp) internal {
         
         // TODO: reset Election Cycle Result DONE!
         delete newSupervisors;
@@ -247,7 +247,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
     function dividendProposed() external {}
 
     //Condition
-    function approvalDividendReached() internal returns (uint8) {
+    function approvalDividendReached() internal view returns (uint8) {
         uint countApprove = 0;
         uint countDisagree = 0;
         
@@ -263,7 +263,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         return 0;
     }
 
-    function timeoutDividend() internal returns(bool) {
+    function timeoutDividend() internal view returns(bool) {
         return block.timestamp > dividendStartedTime + 1 days;
     }
     
@@ -316,5 +316,4 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         }
         return election;
     }
-
 }
