@@ -19,7 +19,6 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
     uint[] SUPERVISOR = [uint(Role.SUPERVISOR)];
     uint[] SHAREHOLDER = [uint(Role.SHAREHOLDER)];
 
-
     string companyName;
     address public currentCEO;
     uint public numberOfSupervisors;
@@ -30,14 +29,19 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
     mapping(address => bool) reelection; 
     uint lastElection;
     address[] internal newSupervisors;
+    uint timeCEOstarted;
+    uint failCountCEO;
     
     // Dividend Cycle
     uint lockedBalance;                 //TODO: Problem reset after Fail!!  
-    mapping(address => uint) dividend; //for shareholder
+    mapping(address => uint) dividend;  //for shareholder
     uint lastTimeDividend;
+    
 
     uint proposedDividend;
+    uint dividendStartedTime;
     bool proposed;
+    
     mapping(address => uint8) approved; //by supervisor
 
 
@@ -125,7 +129,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
     }
 
     function daysPassedLastDividend(uint daysPassed) internal view returns (bool)  {
-        lastTimeDividend +  daysPassed * 1 days <= block.timestamp;
+        lastTimeDividend + daysPassed * 1 days <= block.timestamp;
         return true;
     }
 
@@ -135,9 +139,9 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
             e.next();
     }
 
-    // TODO What if CEO dosen't propose Dividend
+    // TODO What if CEO dosen't propose Dividend >> Supervisor can start reelection
     function start_dividendProposed() condition(daysPassedLastDividend(365) && proposed) internal {
-        delete propose; 
+        delete proposed; 
     }
 
     //---------------------------------------------------------------------------------------------
@@ -181,6 +185,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         for(uint i= 0; i < supervisors.length; i++) {
             e.excludeFromPropose(bytes32(bytes20(supervisors[i])));
         }
+        timeCEOstarted = block.timestamp;
         e.next();
     }
 
@@ -191,8 +196,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
     }
 
     // Transition
-    uint failCountCEO=0;
-    function ceoElectionStarted_ceoElectionStarted() condition(election.currentState() == election.failed.selector && failCountCEO < 4) internal {
+    function ceoElectionStarted_ceoElectionStarted() condition(election.currentState() == election.failed.selector && failCountCEO < 2) internal {
         failCountCEO++;
         Election e = setUpElectionCEO();
         // Supervisors can't be elected as CEO
@@ -203,14 +207,14 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
     }
 
     // What if Supervisors are evil and don't want to elect a new CEO ?? ->> make this a reset event >>TIMEOUT
-    function ceoElectionStarted_start() condition(election.currentState() == election.failed.selector && failCountCEO == 2 || ) internal {
-        // TODO: ADD timeOut!!
-        // started = block.timestamp
-        // maxDuration + started >= block.timestamp
-
+    function ceoElectionStarted_start() condition(election.currentState() == election.failed.selector && failCountCEO == 2 || timeCEOstarted + 1 days >= block.timestamp) internal {
+        
         // TODO: reset Election Cycle Result DONE!
-
         delete newSupervisors;
+        for(uint i=0; i < supervisors.length; i++) {
+            reelection[supervisors[i]] = false;
+        }
+        failCountCEO=0;
     }
 
     function ceoElectionStarted_start1() condition(election.currentState() == election.counted.selector) internal {
@@ -220,9 +224,11 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         removeRole(uint(Role.CEO), currentCEO);
         currentCEO = newCEO;
 
+
         // Make newSupervisors operational
         for(uint i=0; i < supervisors.length; i++) {
             removeRole(uint(Role.SUPERVISOR), supervisors[i]);
+            reelection[supervisors[i]] = false;
         }
         delete supervisors;
         supervisors = newSupervisors;
@@ -232,6 +238,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         delete newSupervisors;
 
         lastElection = block.timestamp;
+        failCountCEO=0;
     }
     
 
@@ -257,20 +264,21 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
     }
 
     function timeoutDividend() internal returns(bool) {
-        return block.timestamp > lastTimeDividend + 30 minutes; // TODO: Bullshit!!
+        return block.timestamp > dividendStartedTime + 1 days;
     }
     
     // Transition
     function dividendProposed_start() condition(approvalDividendReached() == 1 || timeoutDividend()) internal {
-        delete proposedDividend;
-        delete proposed;
-
         for(uint i=0; i < supervisors.length; i++) {
             approved[supervisors[i]] = 0; 
         }
-
-        uint payout = proposed * totalSupply();
+        
+        uint payout = proposedDividend * totalSupply();
         lockedBalance -= payout;
+
+        dividendStartedTime;
+        delete proposedDividend;
+        delete proposed;
     }
     function dividendProposed_start1() condition(approvalDividendReached() == 2 ) internal {
         lastTimeDividend = block.timestamp;
