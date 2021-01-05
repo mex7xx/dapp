@@ -1,15 +1,99 @@
 pragma solidity ^0.6.3;
 
-import "@openzeppelin/contracts/utils/EnumerableSet.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./StateMachine.sol";
 import "./Access.sol";
-import "./Election.sol";
-import "./ERC20share.sol";
+import "./AssetToken.sol";
 
-contract SimpleICO {
+
+contract SimpleICO is StateMachine {
+
+    AssetToken public token;
+    
+    address private founder;
+    uint private coinOfferingTimeStarted;
+    uint private investingDuration;
+    string private tokenName;
+    string private tokenSymbol;
+    uint private pricePerToken;
+    uint private minNumberOfTokens;
+    
+    mapping(address => uint) private investments;
+    mapping(address => uint) private receivableTokens;
+    uint private totalInvestment;
+    
+
+    constructor(uint _fundingTime, string memory _tokenName, string memory _tokenSymbol, uint _pricePerToken, uint _minNumberOfTokens, uint _tokensForFounderinPercent) public {
+
+        require(_tokensForFounderinPercent <= 100);
+        require(_tokensForFounderinPercent >= 0);
+
+        investingDuration = _fundingTime;
+        tokenName = _tokenName;
+        tokenSymbol = _tokenSymbol;
+        pricePerToken = _pricePerToken;
+        minNumberOfTokens = _minNumberOfTokens;
+
+        registerState("Investing", this.investing.selector, investing_distribution,this.distribution.selector);
+        registerState("Investing", this.investing.selector, investing_refunding ,this.refunding.selector);
+        registerState("Distribution", this.distribution.selector);
+        registerState("Refunding", this.refunding.selector);
+
+        coinOfferingTimeStarted = block.timestamp;
+    }
+
+
+    // Public Callable Functions
+    function invest() state(this.investing.selector) payable external {
+
+        investments[msg.sender] += msg.value;
+        totalInvestment += msg.value;
+
+        receivableTokens[msg.sender] = msg.value / pricePerToken;
+        next();
+    }
+
+    function requestToken() state(this.distribution.selector) external {
+        uint amount = receivableTokens[msg.sender];
+        token.transfer(msg.sender,amount);
+    }
+
+    function requestRefund() state(this.refunding.selector) external {
+        uint refund = investments[msg.sender];
+        investments[msg.sender] -= refund;
+        msg.sender.transfer(refund);
+    }
+
+    //State::INVESTING
+    function investing() stateTransition(0) external {}
+
+    // Condition
+    function timeoutANDInvestmentReached() internal view returns(bool) {
+        return block.timestamp >= coinOfferingTimeStarted + investingDuration && totalInvestment >= minNumberOfTokens * pricePerToken;
+    }
+    function timeoutANDInvestmentNotReached() internal view returns(bool) {
+        return block.timestamp >= coinOfferingTimeStarted + investingDuration && totalInvestment < minNumberOfTokens * pricePerToken;
+    }
+
+    // Transaction
+    function investing_distribution() condition(timeoutANDInvestmentReached) internal {
+        token = new AssetToken(minNumberOfTokens, tokenName, tokenSymbol, 3);
+        receivableTokens[founder] = totalInvestment * 20 / 100; 
+    }
+
+    function investing_refunding() condition(timeoutANDInvestmentNotReached) internal {}
+
+    //State::DISTRIBUTION
+    function distribution() stateTransition(0) external {}
+
+    //State::REFUNDING
+    function refunding() stateTransition(0) external {}
 
 }
+
+
+
+
+
 /*
 // ToDo: Make funktion voteable so that if quorum is reached function can be called once!
 // with help of Access control and StateMachine

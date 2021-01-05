@@ -16,7 +16,7 @@ contract AccessControl {
         require(allowed);
         emit AccessAllowed(msg.sender);
         _;
-    }
+    }   
     
     function addRole(uint _role, address _to) internal {
         associatedRoles[_to][_role] = true;

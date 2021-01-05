@@ -20,24 +20,32 @@ contract Election is AccessControl, StateMachine {
         bytes32 data;
     }
     
-    uint[] ADMIN = [uint(Role.ADMIN)];
-    uint[] VOTER = [uint(Role.VOTER)];
-    uint[] PROPOSER = [uint(Role.PROPOSER), uint(Role.VOTER)];
+    uint[] private ADMIN = [uint(Role.ADMIN)];
+    uint[] private VOTER = [uint(Role.VOTER)];
+    uint[] private PROPOSER = [uint(Role.PROPOSER), uint(Role.VOTER)];
 
-    Proposal[] proposals;
-    mapping(address => bool) internal proposed;
-    mapping(bytes32 => bool) proposeExists;
+    Proposal[] private proposals;
+    mapping(address => bool) private proposed;
+    mapping(bytes32 => bool) private proposeExists;
 
     mapping(address => Voter) public voters;
 
-    uint[] internal maxVotesIndices;
-    uint internal numberToElect;
+    uint[] private maxVotesIndices;
+    uint public numberToElect;
     string public electionPurpose;
 
-    constructor(uint _numberToElect, string memory _electionPurpose) AccessControl() StateMachine() public {
+    uint private proposeStartTime;
+
+    uint private proposalDuration;
+    uint private voteDuration;
+    uint private voteTimeStarted;
+
+    constructor(uint _numberToElect, string memory _electionPurpose, uint _proposalDuration, uint _voteDuration) AccessControl() StateMachine() public {
         require(_numberToElect >= 1);
         numberToElect = _numberToElect;
         electionPurpose = _electionPurpose;
+        proposalDuration = _proposalDuration;
+        voteDuration = _voteDuration;
         AccessControl.addRole(uint(Role.ADMIN), msg.sender);
 
         // States
@@ -58,7 +66,9 @@ contract Election is AccessControl, StateMachine {
     function register() stateTransition(0) external {}
 
     // Transition
-    function register_propose() private {}
+    function register_propose() private {
+        proposeStartTime = block.timestamp;
+    }
 
     function registerVoter(address voterAddr, uint weight) access(ADMIN) state(this.register.selector) public {
         AccessControl.addRole(uint(Role.VOTER), voterAddr);
@@ -66,21 +76,25 @@ contract Election is AccessControl, StateMachine {
     }
 
     // State::PROPOSE
-    function propose() stateTransition(30) external {}
+    function propose() stateTransition(0) external {}
 
     // Condition
-    function enougthProposals() internal view returns (bool) {
-        return numberToElect > proposals.length; 
+    function notEnougthProposalsANDTimeout() internal view returns (bool) {
+        return numberToElect > proposals.length && block.timestamp >= proposeStartTime + proposalDuration;
+    }
+
+    function enougthProposalsANDTimeout() internal view returns (bool) {
+        return numberToElect <= proposals.length && block.timestamp >= proposeStartTime + proposalDuration;
     }
 
     // Transition
-    function propose_failed() condition(enougthProposals) private {}
-    function propose_vote() private {}
+    function propose_failed() condition(notEnougthProposalsANDTimeout) private {}
+    function propose_vote() condition(enougthProposalsANDTimeout) private {}
 
     function registerProposer(address proposerAddr) access(ADMIN) state(this.propose.selector) public {
         AccessControl.addRole(uint(Role.PROPOSER), proposerAddr);
     }
-    
+
     function excludeFromPropose(bytes32 Data) access(ADMIN) state(this.propose.selector) public {
         proposeExists[Data] = true; 
     }
@@ -97,17 +111,22 @@ contract Election is AccessControl, StateMachine {
     }
 
     //State::VOTE
-    function vote() stateTransition(30) external {
+    function vote() stateTransition(0) external {
         makeMaxVotesIndices(numberToElect);
     }
+
     // Condition
-    function notVoted() internal view returns (bool) {
-        return proposals[maxVotesIndices[0]].vote == 0;
+    function notVotedANDTimeout() internal view returns (bool) {
+        return proposals[maxVotesIndices[0]].vote == 0 && block.timestamp >= voteDuration + voteTimeStarted;
+    }
+
+    function votedANDTimeout() internal view returns (bool) {
+        return proposals[maxVotesIndices[0]].vote != 0 && block.timestamp >= voteDuration + voteTimeStarted;
     }
 
     // Transitions
-    function vote_failed() condition(notVoted) private {}
-    function vote_counted() private {}
+    function vote_failed() condition(notVotedANDTimeout) private {}
+    function vote_counted() condition(votedANDTimeout) private {}
 
     // Vote for CandidateID
     function voteCandidate(uint candidateNumber) access(VOTER) state(this.vote.selector) public {

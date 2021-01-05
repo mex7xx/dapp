@@ -8,8 +8,7 @@ contract ERC20share is ERC20 {
     using EnumerableSet for EnumerableSet.AddressSet;
     
     EnumerableSet.AddressSet internal Shareholders;
-
-    // invoked by Founder
+    
     constructor(uint256 initialSupply, string memory _name, string memory _symbol) public ERC20(_name, _symbol) {
         _mint(msg.sender, initialSupply);
         Shareholders.add(msg.sender);

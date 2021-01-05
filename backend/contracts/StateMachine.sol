@@ -23,6 +23,10 @@ contract StateMachine {
     constructor() public {        
         lastTime = block.timestamp;
     }
+    
+    function getCurrentStateName() public returns (string memory) {
+        return stateNames[currentState];
+    }
 
     function registerState(string memory name, bytes4 stateSig) internal {
         require(stateSig != 0);
@@ -84,7 +88,7 @@ contract StateMachine {
         bytes4 oldState = currentState;
         (bool success, bytes memory data) = address(this).call(abi.encodeWithSelector(currentState));  //call wegen msg.sender == contract statemachine
         require(success, "State Machine call failed");
-         //currentState = abi.decode(data,(bytes4));               // Ceck if bytes4 can be decoded
+         //currentState = abi.decode(data,(bytes4));             // Ceck if bytes4 can be decoded
         
         require(currentState != 0, "Fail State entered");       // 0 == FailState
         

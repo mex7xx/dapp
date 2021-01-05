@@ -2,4 +2,4 @@
 bin/
 node_modules/
 build/
-.backend/contracts/artifacts/
+backend/contracts/artifacts/
