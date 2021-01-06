@@ -69,7 +69,7 @@ contract Election is AccessControl, StateMachine {
     function register_propose() private {
         proposeStartTime = block.timestamp;
     }
-
+    
     function registerVoter(address voterAddr, uint weight) access(ADMIN) state(this.register.selector) public {
         AccessControl.addRole(uint(Role.VOTER), voterAddr);
         voters[voterAddr] = Voter(false, weight);

@@ -86,7 +86,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         require(_amount <= address(this).balance - lockedBalance);
         _destination.transfer(_amount);
     }
-    
+
     /*
     function setCompanyNameSymbol(string calldata _name, string calldata _symbol) access(CEO) external {
         assetName = _name;
