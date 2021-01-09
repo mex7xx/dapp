@@ -1,7 +1,7 @@
 //const { default: Web3 } = require("web3");
 
-const c1 = artifacts.require("c1")
-
+/*
+const c1 = artifacts.require("c1"); 
 
 contract('Test', (accounts) => {
     contract('String lengthtest()', () => {
@@ -22,14 +22,28 @@ contract('Test', (accounts) => {
 
             let v2 = await c1instance.i();
             console.log(v2);
-            
-            assert.equal(v2, 2)
+            assert.equal(v2, 2);
         });
     });
+});
 
+*/
 
+const ico = artifacts.require("ICO.sol"); 
+const assetToken = artifacts.require("AssetToken.sol"); 
 
+contract('Test Deployment', (accounts) => {
+    contract('ICO contains Asset Token', () => {
+        it('erc20token === assetTokenInstance', async () => {
 
+            console.log(await web3.eth.getBalance(accounts[0]));
 
-    
+            const icoInstance = await ico.deployed();
+
+            const assetTokenInstance  = await assetToken.deployed();
+            let erc20 =  await icoInstance.ERC20token();
+
+            assert.strictEqual(erc20, assetTokenInstance.address);
+        });
+    });
 });

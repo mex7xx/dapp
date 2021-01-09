@@ -6,9 +6,13 @@ module.exports = function (deployer) {
 };
 */
 
-
+let assetToken = artifacts.require("AssetToken.sol");
 let ico = artifacts.require("ICO.sol");
 
-module.exports = function (deployer) {
-  deployer.deploy(ico, 60, "MyAssetToken", "MAT", 10, 1000000, 10);
+
+module.exports = async function(deployer) {
+
+  await deployer.deploy(assetToken, 1000, "MyToken", "MT", 3);
+  await deployer.deploy(ico, assetToken.address, 60, 10, 1000000);
+  
 };

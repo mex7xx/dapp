@@ -8,7 +8,7 @@ contract ICO is StateMachine {
     
     IERC20 public ERC20token;
     uint private totalTokensSold;
-    address private founder;
+    address public founder;
     
     uint private coinOfferingTimeStarted;
     uint private investingDuration;
@@ -29,18 +29,18 @@ contract ICO is StateMachine {
         investingDuration = _fundingDuration;
         pricePerToken = _pricePerToken;
         minNumberOfTokens = _minNumberOfTokens;
-
-
+        
         registerState("Investing", this.investing.selector, investing_distribution,this.distribution.selector);
         registerState("Investing", this.investing.selector, investing_refunding ,this.refunding.selector);
         registerState("Distribution", this.distribution.selector);
         registerState("Refunding", this.refunding.selector);
-
+        
         coinOfferingTimeStarted = block.timestamp;
     }
 
     // Public Callable Functions
     function invest() state(this.investing.selector) payable external returns(uint) {
+        require(msg.value != 0); 
         uint sellableTokens = ERC20token.balanceOf(address(this));
         uint requestableTokens = msg.value / pricePerToken;
 
@@ -66,7 +66,8 @@ contract ICO is StateMachine {
         investments[msg.sender] = 0;
         msg.sender.transfer(refund);
     }
-
+    
+    
     //State::INVESTING
     function investing() stateTransition(0) external {}
 
@@ -82,17 +83,18 @@ contract ICO is StateMachine {
     function investing_distribution() condition(timeoutANDInvestmentReached) internal {
         uint balance = ERC20token.balanceOf(address(this));
         ERC20token.transfer(founder, balance - totalTokensSold);
+        
+        address contractAddr = address(ERC20token);
+        (payable(contractAddr)).transfer(contractAddr.balance);
     }
-
     function investing_refunding() condition(timeoutANDInvestmentNotReached) internal {
         uint balance = ERC20token.balanceOf(address(this));
         ERC20token.transfer(founder, balance);
     }
-
+    
     //State::DISTRIBUTION
     function distribution() stateTransition(0) external {}
 
     //State::REFUNDING
     function refunding() stateTransition(0) external {}
 }
-

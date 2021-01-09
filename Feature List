@@ -29,8 +29,10 @@ dapp
 frontend
 
 --
-Open remix ide 
-node_modules/.bin/remixd -s backend/ https://remix.ethereum.org
+Open remix ide
+
+npx -s ./ https://remix.ethereum.org
+
 
 --
 Truffle 
