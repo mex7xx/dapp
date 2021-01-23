@@ -34,5 +34,4 @@ contract ERC20share is ERC20 {
         }
         return true;
     }
-    
 }

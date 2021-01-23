@@ -1,14 +1,13 @@
 pragma solidity ^0.6.3;
 
 import "./StateMachine.sol";
-import "./Access.sol";
 import "@openzeppelin/contracts/token/ERC20//IERC20.sol";
 
 contract ICO is StateMachine {
     
     IERC20 public ERC20token;
-    uint private totalTokensSold;
     address public founder;
+    uint private totalTokensSold;
     
     uint private coinOfferingTimeStarted;
     uint private investingDuration;
@@ -20,44 +19,47 @@ contract ICO is StateMachine {
     mapping(address => uint) private receivableTokens;
 
 
-    constructor(address tokenAddress, uint _fundingDuration, uint _pricePerToken, uint _minNumberOfTokens) public { 
+    constructor(address tokenAddress, uint _fundingDuration, uint _pricePerToken, uint _minNumberOfTokens) StateMachine() public { 
         founder = msg.sender;
-
         ERC20token = IERC20(tokenAddress);
-        ERC20token.totalSupply();
+
+        require(_minNumberOfTokens <= ERC20token.totalSupply());
 
         investingDuration = _fundingDuration;
         pricePerToken = _pricePerToken;
         minNumberOfTokens = _minNumberOfTokens;
-        
-        registerState("Investing", this.investing.selector, investing_distribution,this.distribution.selector);
-        registerState("Investing", this.investing.selector, investing_refunding ,this.refunding.selector);
+
+        registerState("Investing", this.investing.selector, investing_distribution, this.distribution.selector);
+        registerState("Investing", this.investing.selector, investing_refunding, this.refunding.selector);
         registerState("Distribution", this.distribution.selector);
         registerState("Refunding", this.refunding.selector);
         
         coinOfferingTimeStarted = block.timestamp;
     }
-
+    event Debug(uint);
     // Public Callable Functions
-    function invest() state(this.investing.selector) payable external returns(uint) {
-        require(msg.value != 0); 
-        uint sellableTokens = ERC20token.balanceOf(address(this));
-        uint requestableTokens = msg.value / pricePerToken;
+    function invest() state(this.investing.selector) payable external {
+        require(msg.value != 0, ' 0 investmnets made'); 
+        uint sellableTokens = ERC20token.balanceOf(address(this)) - totalTokensSold;
+        
+        uint requestedTokens = msg.value / pricePerToken;
+        emit Debug(msg.value);
+        emit Debug(pricePerToken);
+        emit Debug(requestedTokens);
 
-        require(sellableTokens > 0 && sellableTokens >= requestableTokens);
+        require(sellableTokens > 0, 'all tokens already sold');
+        require(sellableTokens >= requestedTokens, 'not enougth sellable Tokens to invest all provided funds');
         
         investments[msg.sender] += msg.value;
-        totalTokensSold += requestableTokens;
-
-        receivableTokens[msg.sender] += requestableTokens; 
+        receivableTokens[msg.sender] += requestedTokens; 
+        totalTokensSold += requestedTokens;
 
         next();
-
-        return sellableTokens;
     }
 
     function requestToken() state(this.distribution.selector) external {
         uint amount = receivableTokens[msg.sender];
+        Debug(amount);
         ERC20token.transfer(msg.sender, amount);
     }
 
@@ -81,11 +83,15 @@ contract ICO is StateMachine {
     
     // Transaction
     function investing_distribution() condition(timeoutANDInvestmentReached) internal {
+        // TODO: Make Burnable
+        
         uint balance = ERC20token.balanceOf(address(this));
         ERC20token.transfer(founder, balance - totalTokensSold);
+
+        // Send ether to AssetToken
         
-        address contractAddr = address(ERC20token);
-        (payable(contractAddr)).transfer(contractAddr.balance);
+        address destination = address(ERC20token);
+        (payable(destination)).transfer(address(this).balance);
     }
     function investing_refunding() condition(timeoutANDInvestmentNotReached) internal {
         uint balance = ERC20token.balanceOf(address(this));

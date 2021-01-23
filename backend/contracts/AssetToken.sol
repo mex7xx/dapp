@@ -4,10 +4,18 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./StateMachine.sol";
 import "./Access.sol";
 import "./Election.sol";
-import "./ERC20share.sol";
+
+//import "./ElectionFactory.sol";
 
 
-contract AssetToken is StateMachine, AccessControl, ERC20share {
+contract AssetToken is StateMachine, AccessControl, ERC20 {
+
+    uint16 private constant ELECTION_PROPOSAL_DURATION = 60*15;
+    uint16 private constant ELECTION_VOTE_DURATION = 60*15;
+    uint32 private constant RESTART_ELECTION_DURATION = 365 days;
+    uint8 private constant RETRYS_CEO_ELECTION = 2;
+    uint32 private constant RESTART_DIVIDEND_CYCLE = 365 days;
+    uint32 private constant DIVIDENDS_PROPOSED_CYCLE = 1 days;
 
     enum Role {
         SHAREHOLDER,
@@ -15,68 +23,102 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         CEO
     }
 
-    uint[] CEO = [uint(Role.CEO)];
-    uint[] SUPERVISOR = [uint(Role.SUPERVISOR)];
-    uint[] SHAREHOLDER = [uint(Role.SHAREHOLDER)];
-    
-    uint constant electionProposalDuration = 14 days;
-    uint constant electionVoteDuration = 14 days;
- 
+    uint[] internal CEO = [uint(Role.CEO)];
+    uint[] internal SUPERVISOR = [uint(Role.SUPERVISOR)];
+    uint[] internal SHAREHOLDER = [uint(Role.SHAREHOLDER)];
 
+    using EnumerableSet for EnumerableSet.AddressSet;
+    EnumerableSet.AddressSet internal Shareholders;
+    
     address public currentCEO;
-    uint public numberOfSupervisors;
     address[] public supervisors;   
-    string private assetName;
-    string private assetSymbol;             
+    string internal assetName;
+    string internal assetSymbol;
+    uint internal numberOfSupervisors;         
     
     // Election Cycle
-    uint private constant ResartTimeElectionCycle = 365 days;
-    uint constant numberRetryCEOElection = 2;
+    IElection public election;
 
-    Election public election;
-    mapping(address => bool) reelection; 
-    uint lastElection;
+    mapping(address => bool) internal reelection; 
+    uint internal lastElection;
     address[] internal newSupervisors;
-    uint timeCEOstarted;
-    uint failCountCEO;
+    uint internal timeCEOstarted;
+    uint internal failCountCEO;
     
 
     // Dividend Cycle
-    uint private constant ResartTimeDividendCycle = 365 days;
-    uint private constant dividendProposedDuration = 1 days; 
-    uint lockedBalance;                         //TODO: Problem reset after Fail!!  
-    mapping(address => uint) dividend;          //for shareholder
-    uint lastTimeDividend;
+    uint internal lockedBalance;                                //TODO: Problem reset after Fail!!  
+    mapping(address => uint) internal dividend;                  //for shareholder
+    uint internal lastTimeDividend;
+
+    uint public proposedDividend;
+    uint internal dividendStartedTime;
+    bool internal proposed;
     
-    uint proposedDividend;
-    uint dividendStartedTime;
-    bool proposed;
-    
-    
-    mapping(address => uint8) approved; //by supervisor
+    mapping(address => uint8) internal approved; //by supervisor
+
+    /*
+    function initElection(address a) internal {
+        IElectionFactory electionF = IElectionFactory(a);
+        electionF.createElection(); 
+    }
+    */
 
     // constructor sets Company Name, Proposal for SB
-    constructor(uint _initialSupply, string memory _name, string memory _symbol, uint _numberOfSupervisors) 
-    AccessControl() StateMachine() ERC20share(_initialSupply, _name, _symbol) public {
+    constructor(uint _initialSupply, string memory _name, string memory _symbol, uint _numberOfSupervisors)
+     StateMachine() ERC20(_name, _symbol) public {
+
         require(_numberOfSupervisors%2 == 1);
         numberOfSupervisors = _numberOfSupervisors;
         assetName = _name;
         assetSymbol = _symbol;
         
+        _mint(msg.sender, _initialSupply);
+        Shareholders.add(msg.sender);
+        
         registerState("START", this.start.selector, start_electionStarted, this.electionStarted.selector);
         registerState("START", this.start.selector, start_dividendProposed, this.dividendProposed.selector);
-
+        
         registerState("ELECTION_STARTED", this.electionStarted.selector, electionStarted_electionStarted, this.electionStarted.selector);
         registerState("ELECTION_STARTED", this.electionStarted.selector, electionStarted_electionStarted1, this.electionStarted.selector);
         registerState("ELECTION_STARTED", this.electionStarted.selector, electionStarted_ceoElectionStarted, this.ceoElectionStarted.selector);
 
+        registerState("CEO_ELECTION_STARTED", this.ceoElectionStarted.selector, ceoElectionStarted_start_success, this.start.selector);
         registerState("CEO_ELECTION_STARTED", this.ceoElectionStarted.selector, ceoElectionStarted_ceoElectionStarted, this.ceoElectionStarted.selector);
-        registerState("CEO_ELECTION_STARTED", this.ceoElectionStarted.selector, ceoElectionStarted_start, this.start.selector);
-        registerState("CEO_ELECTION_STARTED", this.ceoElectionStarted.selector, ceoElectionStarted_start1, this.start.selector);
-
+        registerState("CEO_ELECTION_STARTED", this.ceoElectionStarted.selector, ceoElectionStarted_start_reset, this.start.selector);
+        
         registerState("DIVIDEND_PROPOSED",this.dividendProposed.selector, dividendProposed_start, this.start.selector);
-        registerState("DIVIDEND_PROPOSED",this.dividendProposed.selector, dividendProposed_start, this.start.selector);
+        registerState("DIVIDEND_PROPOSED",this.dividendProposed.selector, dividendProposed_start1, this.start.selector);
     }
+
+    function transfer(address recipient, uint amount) override public returns(bool) {
+        ERC20.transfer(recipient, amount);
+
+        Shareholders.add(recipient);
+        addRole(uint(Role.SHAREHOLDER), recipient);
+        if(balanceOf(msg.sender) == 0) {
+            Shareholders.remove(msg.sender);
+            removeRole(uint(Role.SHAREHOLDER), msg.sender);
+        }
+        return true;
+    }
+
+    function transferFrom(address sender, address recipient, uint256 amount) override public returns(bool) {
+        ERC20.transferFrom(sender, recipient, amount);
+
+        Shareholders.add(recipient);
+        addRole(uint(Role.SHAREHOLDER), recipient);
+        if(balanceOf(sender) == 0) {
+            Shareholders.remove(sender);
+            removeRole(uint(Role.SHAREHOLDER), sender);
+        }
+
+        return true;
+    }
+
+    //TODO: CHECK next() in Function
+    // befor better because of timed Conditions State 
+    // after better because of stateChange by InputFunctions
 
 
     // Callable Functions
@@ -85,6 +127,36 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
     function sendEther(address payable _destination, uint _amount) access(CEO) external {
         require(_amount <= address(this).balance - lockedBalance);
         _destination.transfer(_amount);
+    }
+
+    function proposeDividend(uint _amountPerShare) access(CEO) state(this.start.selector) external {
+        
+        uint payout = _amountPerShare  * totalSupply();
+        require(payout <= address(this).balance);
+        lockedBalance += payout;
+        proposedDividend = _amountPerShare;
+        proposed=true; 
+        next();
+    }
+
+    function setDividendApproval(bool vote) access(SUPERVISOR) state(this.dividendProposed.selector) external {
+        if(vote) approved[msg.sender] = 2;
+        else approved[msg.sender] = 1;
+        next();
+    }
+
+    function setReElection(bool _b) access(SUPERVISOR) state(this.start.selector) external {
+        reelection[msg.sender] = _b;
+        next();
+    }
+
+
+    function requestDividend() access(SHAREHOLDER) external {
+        lockedBalance -= dividend[msg.sender];
+        msg.sender.transfer(dividend[msg.sender]);
+        dividend[msg.sender] = 0;
+
+        // 
     }
 
     /*
@@ -102,34 +174,6 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
     }
     */
 
-    // Shareholder Functions
-    function requestDividend() access(SHAREHOLDER) external {
-        lockedBalance -= dividend[msg.sender];
-        msg.sender.transfer(dividend[msg.sender]);
-        dividend[msg.sender] = 0;
-    }
-
-    function setReElection(bool _b) access(SUPERVISOR) state(this.start.selector) external {
-        reelection[msg.sender] = _b;
-        next();
-    }
-
-    function proposeDividend(uint128 _amountPerShare) access(CEO) state(this.start.selector) external {
-        uint payout = _amountPerShare  * totalSupply();
-        require(payout <= address(this).balance);
-        lockedBalance += payout;
-        proposedDividend = _amountPerShare;
-        proposed=true; 
-        next();
-    }
-    
-    function setDividendApproval(bool vote) access(SUPERVISOR) state(this.dividendProposed.selector) external {
-        if(vote) approved[msg.sender] = 2;
-        else approved[msg.sender] = 1;
-        next();
-    }
-
-
 
     // STATES
     //---------------------------------------------------------------------------------------------
@@ -144,26 +188,28 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         }
         bool reElection = numberOfSupervisors/2 < count;
         
-        bool timePassed = lastElection + ResartTimeElectionCycle <= block.timestamp;
+        bool timePassed = lastElection + RESTART_ELECTION_DURATION <= block.timestamp;
+
         return reElection || timePassed;
     }
 
     function proposedANDTimePassed() internal view returns (bool)  {
-        bool timePassed = lastTimeDividend + ResartTimeDividendCycle <= block.timestamp;
+        bool timePassed = block.timestamp >= lastTimeDividend + RESTART_DIVIDEND_CYCLE;
         return proposed && timePassed;
     }
 
-
     // Transition 
     function start_electionStarted() condition(reElectionORTimePassed) internal {
-            Election e = setUpElectionSupervisor();
-            e.next();
+            election = setUpElectionSupervisor();
+            
+            election.next();
     }
 
     function start_dividendProposed() condition(proposedANDTimePassed) internal {       // What if CEO dosen't propose Dividend >> Supervisor can start reelection
         delete proposed;
         dividendStartedTime = block.timestamp;
     }
+
 
     //---------------------------------------------------------------------------------------------
     //State::ELECTION_STARTED
@@ -173,24 +219,26 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
 
     //Condition
     function electionFailed() view internal returns (bool) {
-        return election.currentState() == election.failed.selector;
+        return election.fail();
+        //return StateMachine(address(election)).currentState() == election.failed.selector;
     }
     function electionCountedANDNotEnougthSupervisor() view internal returns (bool) {
-        return election.currentState() == election.counted.selector && newSupervisors.length < numberOfSupervisors - 1;
+        //return election.currentState() == election.counted.selector && newSupervisors.length < numberOfSupervisors - 1;
+        return election.success() && newSupervisors.length < numberOfSupervisors - 1;
     }
 
     function electionCountedANDEnougthSupervisor() view internal returns (bool) {
-        return election.currentState() == election.counted.selector && newSupervisors.length == numberOfSupervisors - 1;
+        return election.success() && newSupervisors.length == numberOfSupervisors - 1;
     }
     
     // Transition
     function electionStarted_electionStarted() condition(electionFailed) internal {
-        Election e = setUpElectionSupervisor();
+        election = setUpElectionSupervisor();
         // exclude already Voted Supervisors
         for(uint i= 0; i < newSupervisors.length; i++) {
-            e.excludeFromPropose(bytes32(bytes20(newSupervisors[i])));
+            election.excludeFromPropose(bytes32(bytes20(newSupervisors[i])));
         }
-        e.next();
+        election.next();
     }
 
     function electionStarted_electionStarted1() condition(electionCountedANDNotEnougthSupervisor) internal {
@@ -198,60 +246,63 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         address supervisor = address(bytes20(election.getCandidate(index)));
         newSupervisors.push(supervisor);
         
-        Election e = setUpElectionSupervisor();
+        election = setUpElectionSupervisor();
         // exclude already Voted Supervisors
         for(uint i= 0; i < newSupervisors.length; i++) {
-            e.excludeFromPropose(bytes32(bytes20(newSupervisors[i])));
+            election.excludeFromPropose(bytes32(bytes20(newSupervisors[i])));
         }
-        e.next();
+        election.next();
     }
 
     function electionStarted_ceoElectionStarted() condition(electionCountedANDEnougthSupervisor) internal {
-
         uint index = election.getMaxVotesIndices()[0];
         address supervisor = address(bytes20(election.getCandidate(index)));
         newSupervisors.push(supervisor);
         
         // Start CEO-Election
-        Election e = setUpElectionCEO();
+        election = setUpElectionCEO();
         // Supervisors can't be elected as CEO
         for(uint i= 0; i < supervisors.length; i++) {
-            e.excludeFromPropose(bytes32(bytes20(supervisors[i])));
+            election.excludeFromPropose(bytes32(bytes20(supervisors[i])));
         }
         timeCEOstarted = block.timestamp;
-        e.next();
-    }
-
-    //---------------------------------------------------------------------------------------------
-    //State::CEO_ELECTION_STARTED
-    function ceoElectionStarted() external {
         election.next();
     }
 
+
+    //---------------------------------------------------------------------------------------------
+    //State::CEO_ELECTION_STARTED
+    function ceoElectionStarted() stateTransition(0) external {
+        election.next();
+    }
+
+    //event Debug(uint);
+
     // Condition
-    function electionFailedANDfailCountnotReached() view internal returns (bool) {
-        return election.currentState() == election.failed.selector && failCountCEO < numberRetryCEOElection;
+    function electionFailedANDfailCountnotReached() internal view returns (bool) {
+        return election.fail() && failCountCEO < RETRYS_CEO_ELECTION;
     }
-    function electionFailedANDfailCountCEO() view internal returns (bool) {
-        return election.currentState() == election.failed.selector && failCountCEO >= numberRetryCEOElection;
+
+    function electionFailedANDfailCountCEO() internal view returns (bool) {
+        return election.fail() && failCountCEO >= RETRYS_CEO_ELECTION;
     }
-    function electionSuccessCEO() view internal returns (bool) {
-        return election.currentState() == election.counted.selector;
+
+    function electionSuccessCEO() internal view returns (bool) {
+        return election.success();
     }
 
     // Transition
     function ceoElectionStarted_ceoElectionStarted() condition(electionFailedANDfailCountnotReached) internal {
         failCountCEO++;
-        Election e = setUpElectionCEO();
+        election = setUpElectionCEO();
         // Supervisors can't be elected as CEO
         for(uint i= 0; i < newSupervisors.length; i++) {
-            e.excludeFromPropose(bytes32(bytes20(newSupervisors[i])));
+            election.excludeFromPropose(bytes32(bytes20(newSupervisors[i])));
         }
-        e.next();
+        election.next();
     }
 
-    // What if Supervisors are evil and don't want to elect a new CEO ?? ->> make this a reset event >>TIMEOUT
-    function ceoElectionStarted_start() condition(electionFailedANDfailCountCEO) internal {
+    function ceoElectionStarted_start_reset() condition(electionFailedANDfailCountCEO) internal {
         // TODO: reset Election Cycle Result DONE!
         delete newSupervisors;
         for(uint i=0; i < supervisors.length; i++) {
@@ -260,24 +311,28 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         failCountCEO=0;
     }
 
-    function ceoElectionStarted_start1() condition(electionSuccessCEO) internal {
+    function ceoElectionStarted_start_success() condition(electionSuccessCEO) internal {
+
         uint index = election.getMaxVotesIndices()[0];
+        
         address newCEO = address(bytes20(election.getCandidate(index)));
         addRole(uint(Role.CEO), newCEO);
         removeRole(uint(Role.CEO), currentCEO);
         currentCEO = newCEO;
 
-
         // Make newSupervisors operational
+        
         for(uint i=0; i < supervisors.length; i++) {
             removeRole(uint(Role.SUPERVISOR), supervisors[i]);
             reelection[supervisors[i]] = false;
         }
         delete supervisors;
-        supervisors = newSupervisors;
-        for(uint i=0; i < supervisors.length; i++) {
-            addRole(uint(Role.SUPERVISOR), supervisors[i]);
+
+        for(uint i=0; i < newSupervisors.length; i++) {
+            addRole(uint(Role.SUPERVISOR), newSupervisors[i]);
         }
+
+        supervisors = newSupervisors;
         delete newSupervisors;
 
         lastElection = block.timestamp;
@@ -307,7 +362,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
     }
 
     function approvalDividendNotReachedORTimeout() internal view returns (bool) {
-        return approvalDividendReached() == 1 || block.timestamp > dividendStartedTime + dividendProposedDuration;
+        return approvalDividendReached() == 1 || block.timestamp > dividendStartedTime + DIVIDENDS_PROPOSED_CYCLE;
     }
 
     function approvalDividend() internal view returns (bool) {
@@ -334,11 +389,17 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         }
     }
 
+
     // Private Funcitons
     //---------------------------------------------------------------------------------------------
-    function setUpElectionSupervisor() private returns(Election)  {
-        election = new Election(1, "Supervisor Election",electionProposalDuration, electionVoteDuration);
+    function setUpElectionSupervisor() private returns(IElection)  {
+        election = new Election(1, "Supervisor Election", ELECTION_PROPOSAL_DURATION, ELECTION_VOTE_DURATION);
+
+        //election = new createElection();
+
+
         uint l = Shareholders.length();
+
         for (uint i=0; i<l; i++) {
             address addr = Shareholders.at(i);
             election.registerVoter(addr, balanceOf(addr));
@@ -352,14 +413,17 @@ contract AssetToken is StateMachine, AccessControl, ERC20share {
         return election;
     }
 
-    function setUpElectionCEO() private returns(Election){
-        election = new Election(1, "CEO Election",electionProposalDuration, electionVoteDuration);
+    function setUpElectionCEO() private returns(IElection){
+        election = new Election(1, "CEO Election",ELECTION_PROPOSAL_DURATION, ELECTION_VOTE_DURATION);
 
-        for(uint i=0; i< supervisors.length; i++) {
-            address addr = supervisors[i];
+        for(uint i=0; i< newSupervisors.length; i++) {
+            address addr = newSupervisors[i];
             election.registerVoter(addr, 1);
         }
         return election;
     }
 
+    // Fallback function 
+    receive() external payable {
+    }
 }

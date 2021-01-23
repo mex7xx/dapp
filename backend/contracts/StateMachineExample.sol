@@ -15,9 +15,7 @@ contract SimpleStateMachineExample is StateMachine {
         registerState("State3", this.state3.selector);
     }
     
-    
     //function next() override public{}
-    
     
     //User Inputs::
     function click() public {
@@ -30,11 +28,11 @@ contract SimpleStateMachineExample is StateMachine {
     
     
     // Conditions::
-    function getClick() public view returns (bool) {
+    function getClick() internal view returns (bool) {
         return clickbool;
     }
     
-    function isEnd() public view returns (bool) {
+    function isEnd() internal view returns (bool) {
         return endMachine;
     }
     
@@ -48,7 +46,7 @@ contract SimpleStateMachineExample is StateMachine {
         emit Trans("a2");
     }
 
-    function b1() internal {    // == condition(true) 
+    function b1() internal {                // == condition(true) 
         emit Trans("b1");
     }
     

@@ -2,8 +2,23 @@ pragma solidity ^0.6.3;
 import "./StateMachine.sol";
 import "./Access.sol";
 
-contract Election is AccessControl, StateMachine {
 
+interface IElection {
+    function registerVoter(address voterAddr, uint weight) external;
+    function registerProposer(address proposerAddr) external;
+    function excludeFromPropose(bytes32 Data) external;
+    function proposeCandidate(bytes32 proposalData) external;
+    function voteCandidate(uint candidateNumber) external;
+    function getCandidate(uint i) view external returns(bytes32);
+    function getMaxVotesIndices() external view returns(uint[] memory);
+    function fail() view external returns(bool);
+    function success() view external returns(bool);
+    function next() external;
+}
+
+
+contract Election is IElection, AccessControl, StateMachine {
+    
     enum Role {
         ADMIN,
         PROPOSER,
@@ -25,7 +40,7 @@ contract Election is AccessControl, StateMachine {
     uint[] private PROPOSER = [uint(Role.PROPOSER), uint(Role.VOTER)];
 
     Proposal[] private proposals;
-    mapping(address => bool) private proposed;
+    mapping(address => uint) private proposed;
     mapping(bytes32 => bool) private proposeExists;
 
     mapping(address => Voter) public voters;
@@ -33,14 +48,14 @@ contract Election is AccessControl, StateMachine {
     uint[] private maxVotesIndices;
     uint public numberToElect;
     string public electionPurpose;
+   
+    bool internal voted;
+    uint internal proposeStartTime;
+    uint internal proposalDuration;
+    uint internal voteDuration;
+    uint internal voteTimeStarted;
 
-    uint private proposeStartTime;
-
-    uint private proposalDuration;
-    uint private voteDuration;
-    uint private voteTimeStarted;
-
-    constructor(uint _numberToElect, string memory _electionPurpose, uint _proposalDuration, uint _voteDuration) AccessControl() StateMachine() public {
+    constructor(uint _numberToElect, string memory _electionPurpose, uint _proposalDuration, uint _voteDuration) StateMachine() public {
         require(_numberToElect >= 1);
         numberToElect = _numberToElect;
         electionPurpose = _electionPurpose;
@@ -57,10 +72,73 @@ contract Election is AccessControl, StateMachine {
         registerState("VOTE", this.vote.selector, vote_failed, this.failed.selector);
         registerState("VOTE", this.vote.selector, vote_counted, this.counted.selector);
 
-        // End States
+        // Final States
         registerState("COUNTED", this.counted.selector);
         registerState("FAILED",this.failed.selector);
+
     }
+
+    // Functions
+
+    // Election Process failed
+    function fail() external view override returns(bool) {
+        if (currentState == Election.failed.selector) return true;
+        else return false;
+    }
+
+    function success() external view override returns(bool) {
+        if (currentState == Election.counted.selector) return true;
+        else return false;
+    }
+    // Register Voter
+    function registerVoter(address voterAddr, uint weight) access(ADMIN) state(this.register.selector) override external {
+        AccessControl.addRole(uint(Role.VOTER), voterAddr);
+        voters[voterAddr] = Voter(false, weight);
+    }
+
+    // Register Proposer
+    function registerProposer(address proposerAddr) access(ADMIN) state(this.register.selector) override external {
+        AccessControl.addRole(uint(Role.PROPOSER), proposerAddr);
+    }
+
+    // Exclude Proposal 
+    function excludeFromPropose(bytes32 Data) access(ADMIN) state(this.register.selector) override external {
+        proposeExists[Data] = true; 
+    }
+
+    //
+    function proposeCandidate(bytes32 proposalData) access(PROPOSER) state(this.propose.selector) override external {
+
+        require(proposed[msg.sender] <= numberToElect, "max proposals reached");     // max proposal per address to avoid spam
+        proposed[msg.sender]++;
+
+        require(!proposeExists[proposalData]);
+        proposeExists[proposalData] = true;
+        proposals.push(Proposal(0,proposalData));
+
+        // TODO: AHHH!!
+    }
+    
+    // Vote for Candidate ID
+    function voteCandidate(uint candidateNumber) access(VOTER) state(this.vote.selector) override public {
+        voted = true;
+        require(!voters[msg.sender].voted, "already voted");
+        voters[msg.sender].voted = true;
+        proposals[candidateNumber].vote += voters[msg.sender].weight;     
+    }
+
+    function getCandidate(uint i) override external view returns(bytes32) {
+        bytes32 candidateData = proposals[i].data;
+        require(candidateData != 0);
+        return candidateData;
+    }
+
+    //
+    function getMaxVotesIndices() override external view returns(uint[] memory) {
+        return maxVotesIndices;
+    }
+
+    // STATES::
 
     // State::REGISTER
     function register() stateTransition(0) external {}
@@ -70,10 +148,6 @@ contract Election is AccessControl, StateMachine {
         proposeStartTime = block.timestamp;
     }
     
-    function registerVoter(address voterAddr, uint weight) access(ADMIN) state(this.register.selector) public {
-        AccessControl.addRole(uint(Role.VOTER), voterAddr);
-        voters[voterAddr] = Voter(false, weight);
-    }
 
     // State::PROPOSE
     function propose() stateTransition(0) external {}
@@ -89,51 +163,31 @@ contract Election is AccessControl, StateMachine {
 
     // Transition
     function propose_failed() condition(notEnougthProposalsANDTimeout) private {}
-    function propose_vote() condition(enougthProposalsANDTimeout) private {}
 
-    function registerProposer(address proposerAddr) access(ADMIN) state(this.propose.selector) public {
-        AccessControl.addRole(uint(Role.PROPOSER), proposerAddr);
+    function propose_vote() condition(enougthProposalsANDTimeout) private {
+        voteTimeStarted = block.timestamp;
     }
 
-    function excludeFromPropose(bytes32 Data) access(ADMIN) state(this.propose.selector) public {
-        proposeExists[Data] = true; 
-    }
-
-    // Returns newly proposed candidate ID 
-    function proposeCandidate(bytes32 proposalData) access(PROPOSER) state(this.propose.selector) public returns(uint) {
-        require(!proposed[msg.sender]);
-        proposed[msg.sender] = true;                    // only one proposal per address to avoid spam
-
-        require(!proposeExists[proposalData]);
-        proposeExists[proposalData] = true; 
-        proposals.push(Proposal(0,proposalData));
-        return proposals.length - 1;
-    }
 
     //State::VOTE
-    function vote() stateTransition(0) external {
-        makeMaxVotesIndices(numberToElect);
-    }
+    function vote() stateTransition(0) external {}
 
     // Condition
     function notVotedANDTimeout() internal view returns (bool) {
-        return proposals[maxVotesIndices[0]].vote == 0 && block.timestamp >= voteDuration + voteTimeStarted;
+        return !voted && block.timestamp >= voteDuration + voteTimeStarted;
     }
 
     function votedANDTimeout() internal view returns (bool) {
-        return proposals[maxVotesIndices[0]].vote != 0 && block.timestamp >= voteDuration + voteTimeStarted;
+        return voted && block.timestamp >= voteDuration + voteTimeStarted;
     }
 
     // Transitions
     function vote_failed() condition(notVotedANDTimeout) private {}
-    function vote_counted() condition(votedANDTimeout) private {}
 
-    // Vote for CandidateID
-    function voteCandidate(uint candidateNumber) access(VOTER) state(this.vote.selector) public {
-        require(!voters[msg.sender].voted);
-        proposals[candidateNumber].vote += voters[msg.sender].weight;
-        voters[msg.sender].voted == true;
+    function vote_counted() condition(votedANDTimeout) private {
+        makeMaxVotesIndices(numberToElect);
     }
+
 
     //State::COUNTED
     function counted() stateTransition(0) external {}
@@ -141,26 +195,14 @@ contract Election is AccessControl, StateMachine {
     //State::FAILED
     function failed() stateTransition(0) external {}
 
-
-    //Redefinition of next to be only accessible for ADMIN
-    function next() access(ADMIN) override public {
+    // TODO: Redefinition of next to be only accessible for ADMIN
+    
+    function next() override(StateMachine, IElection) public {
         StateMachine.next();
     }
-
-    //
-    function getCandidate(uint i) public view returns(bytes32) {
-        bytes32 candidateData = proposals[i].data;
-        require(candidateData != 0);
-        return candidateData;
-    }
-
-    //
-    function getMaxVotesIndices() public view returns(uint[] memory) {
-        return maxVotesIndices;
-    }
-
-    // returns an array of indeces with first to nth greatest proposal if several proposals on nth place have same vote the array is extended 
-    function makeMaxVotesIndices(uint n) state(this.counted.selector) internal returns (uint[] memory)  {
+    
+    // updates an array of indeces with first to nth greatest proposal if several proposals on nth place have same vote the array is extended 
+    function makeMaxVotesIndices(uint n) internal {
         if(proposals.length < n) n = proposals.length;
 
         maxVotesIndices = new uint[](n);
@@ -180,7 +222,9 @@ contract Election is AccessControl, StateMachine {
             }
         }
 
-        // search for with same number of votes and extend array
+        //search for index with same number of votes and extend array
+        
+        /*
         uint lastIndex = maxVotesIndices[n-1];
         uint voteCount = proposals[maxVotesIndices[n-1]].vote;
 
@@ -189,7 +233,7 @@ contract Election is AccessControl, StateMachine {
                 maxVotesIndices.push(i); 
             }
         }
-        return maxVotesIndices;
+        */
     }
 
 }

@@ -1,7 +1,11 @@
 pragma solidity ^0.6.3;
 
 
-contract StateMachine {
+interface IStateMachine {
+    function next() external;
+}
+
+contract StateMachine is IStateMachine {
     
     struct Transition {
         function()  fu;
@@ -14,17 +18,26 @@ contract StateMachine {
     mapping(bytes4 => string) public stateNames;
     mapping(bytes4 => Transition[]) transitions;
     
-    
+
     bool globalReturn;
     uint lastTime;
     bool currentStateSet = false;
     bool taken = false;
+    //string private stateMachineName;
     
     constructor() public {        
         lastTime = block.timestamp;
+        //stateMachineName = _stateMachineName;
     }
     
-    function getCurrentStateName() public returns (string memory) {
+    // Modifier for State Dependent Functions
+    modifier state(bytes4 _requiredState) {
+        // next(); Update State
+        require(currentState == _requiredState, "Function not callable in current State");
+        _;
+    }
+    
+    function getCurrentStateName() external view returns (string memory) {
         return stateNames[currentState];
     }
 
@@ -42,12 +55,6 @@ contract StateMachine {
         transitions[stateSig].push(Transition(fu, nextState));
     }
 
-    // Modifier for State Dependent Functions
-    modifier state(bytes4 _requiredState) {
-        require(currentState == _requiredState, "Function not callable in current State");
-        _;
-    }
-
     // Modifier for State Transition Functions
     modifier stateTransition(uint _releaseStateAfterSeconds) {
         // Time Restriction
@@ -60,14 +67,14 @@ contract StateMachine {
         require(msg.sender == address(this), "Transition must be called from inside the State Machine");
 
         _;
-        
-        for(uint i=0; i < transitions[currentState].length; i++) {
+
+        uint l = transitions[currentState].length;
+        for(uint i=0; i < l; i++) {
             globalReturn = true; 
             transitions[currentState][i].fu();
-            
+
             if(globalReturn) {
                 currentState = transitions[currentState][i].nextState;
-                
                 break;
             }
         }
@@ -82,13 +89,13 @@ contract StateMachine {
     }
     
     // Drives the State Machine - callable by everybody 
-    function next() virtual public {
-        require(!taken); // Reentrancy Protection 
+    function next() override public virtual {
+        require(!taken, "no reentrancy allowed"); // Reentrancy Protection 
         
         bytes4 oldState = currentState;
         (bool success, bytes memory data) = address(this).call(abi.encodeWithSelector(currentState));  //call wegen msg.sender == contract statemachine
         require(success, "State Machine call failed");
-         //currentState = abi.decode(data,(bytes4));             // Ceck if bytes4 can be decoded
+        //currentState = abi.decode(data,(bytes4));             // Ceck if bytes4 can be decoded
         
         require(currentState != 0, "Fail State entered");       // 0 == FailState
         
@@ -96,7 +103,7 @@ contract StateMachine {
             lastTime = block.timestamp;                         // set if State Transition happend
             emit NewStateEntered(currentState, stateNames[currentState]);
         }
-        
+
         taken = false;
     }
 }

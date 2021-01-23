@@ -25,6 +25,8 @@
 // const mnemonic = fs.readFileSync(".secret").toString().trim();
 
 module.exports = {
+
+  //plugins: ["solidity-coverage"],
   /**
    * Networks define how you connect to your ethereum client and let you set the
    * defaults web3 uses to send transactions. If you don't specify one truffle
@@ -47,8 +49,8 @@ module.exports = {
       host: "127.0.0.1",     // Localhost (default: none)
       port: 8545,            // Standard Ethereum port (default: none)
       network_id: "*",       // Any network (default: none)
-      gas: 12000000,
-      gasPrice: 59, 
+      gas: 1200000000,
+      gasPrice: 59,
     }
     // Another network with more advanced options...
     // advanced: {
@@ -91,9 +93,9 @@ module.exports = {
       settings: {          // See the solidity docs for advice about optimization and evmVersion
        optimizer: {
           enabled: true,
-          runs: 1
+          runs: 1,
         },
-        evmVersion: "byzantium"
+        evmVersion: "istanbul"
       }
     }
   }
