@@ -87,6 +87,8 @@ contract StateMachine is IStateMachine {
             globalReturn = false;
         }
     }
+
+    event Debug(bytes4);
     
     // Drives the State Machine - callable by everybody 
     function next() override public virtual {
@@ -94,7 +96,11 @@ contract StateMachine is IStateMachine {
         
         bytes4 oldState = currentState;
         (bool success, bytes memory data) = address(this).call(abi.encodeWithSelector(currentState));  //call wegen msg.sender == contract statemachine
-        require(success, "State Machine call failed");
+        if (!success) {
+            emit Debug(currentState);
+            revert("State Machine call failed");
+        }
+
         //currentState = abi.decode(data,(bytes4));             // Ceck if bytes4 can be decoded
         
         require(currentState != 0, "Fail State entered");       // 0 == FailState
