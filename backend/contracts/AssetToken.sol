@@ -3,9 +3,8 @@ import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./StateMachine.sol";
 import "./Access.sol";
-import "./Election.sol";
-
-//import "./ElectionFactory.sol";
+import "./IElection.sol";
+import "./IElectionFactory.sol";
 
 
 contract AssetToken is StateMachine, AccessControl, ERC20 {
@@ -38,6 +37,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20 {
     
     // Election Cycle
     IElection public election;
+    address electionFactoryAddress;
 
     mapping(address => bool) internal reelection; 
     uint internal lastElection;
@@ -48,26 +48,19 @@ contract AssetToken is StateMachine, AccessControl, ERC20 {
 
     // Dividend Cycle
     uint internal lockedBalance;                                //TODO: Problem reset after Fail!!  
-    mapping(address => uint) internal dividend;                  //for shareholder
+    mapping(address => uint) internal dividend;                 //for shareholder
     uint internal lastTimeDividend;
 
     uint public proposedDividend;
     uint internal dividendStartedTime;
     bool internal proposed;
     
-    mapping(address => uint8) internal approved; //by supervisor
+    mapping(address => uint8) internal approved;                //by supervisor
 
-    /*
-    function initElection(address a) internal {
-        IElectionFactory electionF = IElectionFactory(a);
-        electionF.createElection(); 
-    }
-    */
 
     // constructor sets Company Name, Proposal for SB
-    constructor(uint _initialSupply, string memory _name, string memory _symbol, uint _numberOfSupervisors)
+    constructor(address _electionFactoryAddress, uint _initialSupply, string memory _name, string memory _symbol, uint _numberOfSupervisors)
      StateMachine() ERC20(_name, _symbol) public {
-
         require(_numberOfSupervisors%2 == 1);
         numberOfSupervisors = _numberOfSupervisors;
         assetName = _name;
@@ -75,7 +68,10 @@ contract AssetToken is StateMachine, AccessControl, ERC20 {
         
         _mint(msg.sender, _initialSupply);
         Shareholders.add(msg.sender);
-        
+
+        // address _electionFactoryAddress,
+        //electionFactoryAddress = _electionFactoryAddress;
+
         registerState("START", this.start.selector, start_electionStarted, this.electionStarted.selector);
         registerState("START", this.start.selector, start_dividendProposed, this.dividendProposed.selector);
         
@@ -158,6 +154,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20 {
 
         // 
     }
+
 
     /*
     function setCompanyNameSymbol(string calldata _name, string calldata _symbol) access(CEO) external {
@@ -393,10 +390,12 @@ contract AssetToken is StateMachine, AccessControl, ERC20 {
     // Private Funcitons
     //---------------------------------------------------------------------------------------------
     function setUpElectionSupervisor() private returns(IElection)  {
-        election = new Election(1, "Supervisor Election", ELECTION_PROPOSAL_DURATION, ELECTION_VOTE_DURATION);
+        //election = new Election(1, "Supervisor Election", ELECTION_PROPOSAL_DURATION, ELECTION_VOTE_DURATION);
+
+        IElectionFactory electionFactory = IElectionFactory(electionFactoryAddress);
+        election = IElection(electionFactory.createElection(1, "CEO Election",ELECTION_PROPOSAL_DURATION, ELECTION_VOTE_DURATION));
 
         //election = new createElection();
-
 
         uint l = Shareholders.length();
 
@@ -414,7 +413,10 @@ contract AssetToken is StateMachine, AccessControl, ERC20 {
     }
 
     function setUpElectionCEO() private returns(IElection){
-        election = new Election(1, "CEO Election",ELECTION_PROPOSAL_DURATION, ELECTION_VOTE_DURATION);
+        //election = new Election(1, "CEO Election",ELECTION_PROPOSAL_DURATION, ELECTION_VOTE_DURATION);
+
+        IElectionFactory electionFactory = IElectionFactory(electionFactoryAddress);
+        election = IElection(electionFactory.createElection(1, "CEO Election",ELECTION_PROPOSAL_DURATION, ELECTION_VOTE_DURATION));
 
         for(uint i=0; i< newSupervisors.length; i++) {
             address addr = newSupervisors[i];

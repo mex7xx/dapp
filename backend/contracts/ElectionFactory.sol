@@ -1,4 +1,3 @@
-
 pragma solidity ^0.6.3;
 import "./IElectionFactory.sol";
 import "./Election.sol";

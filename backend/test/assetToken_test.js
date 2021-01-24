@@ -67,8 +67,11 @@ contract('AssetToken', (accounts) => {
 
         it('Check Start State to electionStarted', async () => {
             const actualState1 = await assetToken.currentState();  
-
+            assert.strictEqual(actualState1, web3.eth.abi.encodeFunctionSignature('start()'));
+            console.log(await assetToken.currentState());
             await timeMachine.advanceTimeAndBlock(60);
+            console.log(await assetToken.currentState());
+
             await assetToken.next();
 
             const actualState2 = await assetToken.currentState();
