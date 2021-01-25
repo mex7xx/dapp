@@ -6,9 +6,37 @@ const {
     expectRevert, // Assertions for transactions that should fail
   } = require('@openzeppelin/test-helpers');
 
-let electionContract = artifacts.require("Election.sol")
 
-contract.skip('Election', (accounts) => {
+let electionContract = artifacts.require("Election.sol")
+let electionFactoryContract = artifacts.require("ElectionFactory.sol")
+let assetTokenContract = artifacts.require("AssetToken.sol");
+
+
+contract('ElectionFactory', (accounts) => {
+    let election;
+    contract('Test Factory', () => {
+        xit('testing', async () => {
+            let factory = await electionFactoryContract.deployed();
+            let electionAddress = await factory.createElection(1,"0",10, 10);
+            let add = await factory.add();
+            console.log(add);
+
+            let assetToken = await assetTokenContract.deployed();
+            await assetToken.setElection();
+            add = await assetToken.election();
+            console.log(add);
+
+
+            assetToken.next();
+
+            election = await electionContract.at(add);
+            console.log(await election.currentState());
+        });
+    })
+});
+
+
+contract('Election', (accounts) => {
 
     let election;
 
@@ -29,7 +57,7 @@ contract.skip('Election', (accounts) => {
             let actualState1 = await election.currentState();
             await election.registerVoter(accounts[1], 1);
 
-            await election.next();
+            await election.finishRegisterPhase();
             let actualState2 = await election.currentState();
 
             assert.strictEqual(actualState1, web3.eth.abi.encodeFunctionSignature('register()'));
@@ -45,7 +73,7 @@ contract.skip('Election', (accounts) => {
             for(let i=1; i < accounts.length; i++) {
                 await election.registerVoter(accounts[i], 1);
             }
-            await election.next();
+            await election.finishRegisterPhase();
         });
 
         it('Election propose_vote', async () => {
@@ -85,7 +113,7 @@ contract.skip('Election', (accounts) => {
                 await election.registerVoter(accounts[i], 1);
             }
             
-            await election.next(); // propose
+            await election.finishRegisterPhase(); // propose
 
             await election.proposeCandidate(accounts[2], {from: accounts[5]});
             await election.proposeCandidate(accounts[3], {from: accounts[6]});
@@ -147,9 +175,5 @@ contract.skip('Election', (accounts) => {
             assert.strictEqual(actualState2, web3.eth.abi.encodeFunctionSignature('failed()'));
         });
     });
-
-
-
-
 
 });

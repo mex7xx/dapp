@@ -8,7 +8,7 @@ interface IStateMachine {
 contract StateMachine is IStateMachine {
     
     struct Transition {
-        function()  fu;
+        function() fu;
         bytes4 nextState;
     }
     
@@ -32,9 +32,10 @@ contract StateMachine is IStateMachine {
     
     // Modifier for State Dependent Functions
     modifier state(bytes4 _requiredState) {
-        // next(); Update State
+        next();             // Update State -> timeouts
         require(currentState == _requiredState, "Function not callable in current State");
         _;
+        next();             // Update State -> FunctionCalls
     }
     
     function getCurrentStateName() external view returns (string memory) {
@@ -89,12 +90,13 @@ contract StateMachine is IStateMachine {
     }
 
     event Debug(bytes4);
-    
+
     // Drives the State Machine - callable by everybody 
     function next() override public virtual {
         require(!taken, "no reentrancy allowed"); // Reentrancy Protection 
         
         bytes4 oldState = currentState;
+        emit Debug(currentState);
         (bool success, bytes memory data) = address(this).call(abi.encodeWithSelector(currentState));  //call wegen msg.sender == contract statemachine
         if (!success) {
             emit Debug(currentState);

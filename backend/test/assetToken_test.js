@@ -66,21 +66,19 @@ contract('AssetToken', (accounts) => {
     contract('State Start', () => {
 
         it('Check Start State to electionStarted', async () => {
-            const actualState1 = await assetToken.currentState();  
-            assert.strictEqual(actualState1, web3.eth.abi.encodeFunctionSignature('start()'));
-            console.log(await assetToken.currentState());
-            await timeMachine.advanceTimeAndBlock(60);
-            console.log(await assetToken.currentState());
+            const actualState1 = await assetToken.currentState();
 
+            assert.strictEqual(actualState1, web3.eth.abi.encodeFunctionSignature('start()'));
+        
             await assetToken.next();
 
             const actualState2 = await assetToken.currentState();
 
-            assert.strictEqual(actualState1, web3.eth.abi.encodeFunctionSignature('start()'));
+            //assert.strictEqual(actualState1, web3.eth.abi.encodeFunctionSignature('start()'));
             assert.strictEqual(actualState2, web3.eth.abi.encodeFunctionSignature('electionStarted()'));
         });
 
-        it('Check Start State to dividendProposed', async () => {
+        xit('Check Start State to dividendProposed', async () => {
 
             const actualState1 = await assetToken.currentState();
             assert.strictEqual(actualState1, web3.eth.abi.encodeFunctionSignature('start()'));
@@ -145,9 +143,14 @@ contract('AssetToken', (accounts) => {
             await assetToken.next();
 
             let electionAddress = await assetToken.election();
+
+            //console.log(electionAddress);
             election = await electionContract.at(electionAddress);
 
-            //election = new web3.eth.Contract(electionContract.abi, electionAddress);
+
+            const actualState2 = await assetToken.currentState();
+            assert.strictEqual(actualState2, web3.eth.abi.encodeFunctionSignature('electionStarted()'));
+            
         });
 
         it('Test election role Voter for Shareholders', async ()=> {
@@ -316,6 +319,31 @@ contract('AssetToken', (accounts) => {
             assert.strictEqual(supervisor2, accounts[3])
     }
 
+
+    contract('State Start - setReElection', () => {
+        beforeEach('', async() => {
+
+            await assetToken.next();
+
+            let electionAddress = await assetToken.election();
+            election = await electionContract.at(electionAddress);
+
+            await simpleVoteCycle();
+            await voteSupervisor();
+        });
+
+        it('Start to ElectionStarted by setReElection', async() => {
+            supervisor0 = await assetToken.supervisors(0);
+            supervisor2 = await assetToken.supervisors(2);
+
+            await assetToken.setReElection(true, {from: supervisor0});
+            await assetToken.setReElection(true, {from: supervisor2});
+
+            const actualStateAssetToken1 = await assetToken.currentState();
+            assert.strictEqual(actualStateAssetToken1, web3.eth.abi.encodeFunctionSignature('electionStarted()'));
+        });
+    });
+
     contract('State dividendProposed', () => {
         beforeEach('', async() => {
 
@@ -344,50 +372,55 @@ contract('AssetToken', (accounts) => {
             assert.strictEqual(actualState3, web3.eth.abi.encodeFunctionSignature('dividendProposed()'));
         });
 
-        it('dividendProposed_startTimeout', async() => {
+        contract('dividendProposd to ', async () => {
+            beforeEach('', async() => {
+                
+                let val = web3.utils.toWei('10', 'gwei');
+                await assetToken.proposeDividend(val, {from: accounts[4]});
 
-            let val = web3.utils.toWei('10', 'gwei');
-            await assetToken.proposeDividend(val, {from: accounts[4]});
+                const actualState3 = await assetToken.currentState();
+                assert.strictEqual(actualState3, web3.eth.abi.encodeFunctionSignature('dividendProposed()'));
 
-            const actualState3 = await assetToken.currentState();
-            assert.strictEqual(actualState3, web3.eth.abi.encodeFunctionSignature('dividendProposed()'));
+            });
 
-            let dividendProposedDuration = await assetToken.DIVIDENDS_PROPOSED_CYCLE();
-            web3.eth.getStorageAt(contractAddress, 0).then(console.log);
-            await timeMachine.advanceTimeAndBlock(dividendProposedDuration);
+            it('dividendProposed_startTimeout', async() => {
+                //const DIVIDENDPROPOSEDDURATION = await assetToken.DIVIDENDS_PROPOSED_CYCLE();
 
-            assert.strictEqual(actualState1, web3.eth.abi.encodeFunctionSignature('start()'));
-        });
+                await timeMachine.advanceTimeAndBlock(60*60*25);
+
+                await assetToken.next();
+
+                const actualState1 = await assetToken.currentState();
+                assert.strictEqual(actualState1, web3.eth.abi.encodeFunctionSignature('start()')); 
+            });
+
+            it('dividendProposed_reject', async() => {
+                supervisor0 = await assetToken.supervisors(0);
+                supervisor2 = await assetToken.supervisors(2);
+
+                await assetToken.setDividendApproval(false, {from: supervisor0});
+                await assetToken.setDividendApproval(false, {from: supervisor2});
+
+                const actualState1 = await assetToken.currentState();
+                assert.strictEqual(actualState1, web3.eth.abi.encodeFunctionSignature('start()'));
+            });
+    
+            it('dividendProposed_startApproved', async() => {
+                const actualState3 = await assetToken.currentState();
+                assert.strictEqual(actualState3, web3.eth.abi.encodeFunctionSignature('dividendProposed()'));
+    
+                supervisor0 = await assetToken.supervisors(0);
+                supervisor1 = await assetToken.supervisors(1);
 
 
-        it('dividendProposed_startApproved', async() => {
-
-            let val = web3.utils.toWei('10', 'gwei');
-            await assetToken.proposeDividend(val, {from: accounts[4]});
-
-            const actualState1 = await assetToken.currentState();
-            assert.strictEqual(actualState1, web3.eth.abi.encodeFunctionSignature('dividendProposed()'));
-            
-            supervisor0 = await assetToken.supervisors(0);
-            supervisor1 = await assetToken.supervisors(1);
-            supervisor2 = await assetToken.supervisors(2);
-            console.log(supervisor0);
-
-            await assetToken.setDividendApproval(true, {from: supervisor0});
-            await assetToken.setDividendApproval(true, {from: supervisor1});
-            
-            //await assetToken.setDividendApproval(true, {from: supervisor2});
-
-            /*
-            let dividendProposedDuration = await assetToken.DIVIDENDS_PROPOSED_CYCLE();
-            web3.eth.getStorageAt(contractAddress, 0).then(console.log);
-            await timeMachine.advanceTimeAndBlock(dividendProposedDuration);
-            */
-
-            console.log(web3.eth.abi.encodeFunctionSignature('dividendProposed()'));
-
-            const actualState2 = await assetToken.currentState();
-            assert.strictEqual(actualState2, web3.eth.abi.encodeFunctionSignature('start()'));
+                await assetToken.setDividendApproval(true, {from: supervisor0});
+                await assetToken.setDividendApproval(true, {from: supervisor1});
+                
+                console.log(web3.eth.abi.encodeFunctionSignature('dividendProposed()'));
+    
+                const actualState2 = await assetToken.currentState();
+                assert.strictEqual(actualState2, web3.eth.abi.encodeFunctionSignature('start()'));
+            });
         });
 
     })

@@ -26,6 +26,8 @@ contract Election is IElection, AccessControl, StateMachine {
     uint[] private VOTER = [uint(Role.VOTER)];
     uint[] private PROPOSER = [uint(Role.PROPOSER), uint(Role.VOTER)];
 
+    bool finishedRegister;
+
     Proposal[] private proposals;
     mapping(address => uint) private proposed;
     mapping(bytes32 => bool) private proposeExists;
@@ -42,13 +44,19 @@ contract Election is IElection, AccessControl, StateMachine {
     uint internal voteDuration;
     uint internal voteTimeStarted;
 
-    constructor(uint _numberToElect, string memory _electionPurpose, uint _proposalDuration, uint _voteDuration) StateMachine() public {
+    constructor(uint _numberToElect, string memory _electionPurpose, uint _proposalDuration, uint _voteDuration, address _admin) StateMachine() public {
         require(_numberToElect >= 1);
         numberToElect = _numberToElect;
         electionPurpose = _electionPurpose;
         proposalDuration = _proposalDuration;
         voteDuration = _voteDuration;
-        AccessControl.addRole(uint(Role.ADMIN), msg.sender);
+        
+        if(_admin != address(0)) {
+            AccessControl.addRole(uint(Role.ADMIN), _admin);
+        } else {
+             AccessControl.addRole(uint(Role.ADMIN), msg.sender);
+        }
+        
 
         // States
         registerState("REGISTER", this.register.selector, register_propose, this.propose.selector);
@@ -77,6 +85,7 @@ contract Election is IElection, AccessControl, StateMachine {
         if (currentState == Election.counted.selector) return true;
         else return false;
     }
+    
     // Register Voter
     function registerVoter(address voterAddr, uint weight) access(ADMIN) state(this.register.selector) override external {
         AccessControl.addRole(uint(Role.VOTER), voterAddr);
@@ -90,10 +99,14 @@ contract Election is IElection, AccessControl, StateMachine {
 
     // Exclude Proposal 
     function excludeFromPropose(bytes32 Data) access(ADMIN) state(this.register.selector) override external {
-        proposeExists[Data] = true; 
+        proposeExists[Data] = true;
     }
 
-    //
+    function finishRegisterPhase() access(ADMIN) state(this.register.selector) override external {
+        finishedRegister = true;
+    }
+
+    // 
     function proposeCandidate(bytes32 proposalData) access(PROPOSER) state(this.propose.selector) override external {
 
         require(proposed[msg.sender] <= numberToElect, "max proposals reached");     // max proposal per address to avoid spam
@@ -130,8 +143,13 @@ contract Election is IElection, AccessControl, StateMachine {
     // State::REGISTER
     function register() stateTransition(0) external {}
 
+    // Condition
+    function finishedRegisterPhase() internal view returns (bool) {
+        return finishedRegister;
+    }
+
     // Transition
-    function register_propose() private {
+    function register_propose() condition(finishedRegisterPhase) private {
         proposeStartTime = block.timestamp;
     }
     
