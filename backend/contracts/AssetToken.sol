@@ -1,39 +1,56 @@
-pragma solidity ^0.6.3;
+pragma solidity ^0.6.5; // change to 6.5 for immutable (can be set in constructor)
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./StateMachine.sol";
 import "./Access.sol";
 import "./IElection.sol";
 import "./Election.sol";
 import "./IElectionFactory.sol";
+import "./AssetTokenFactory.sol";
 
 
-contract AssetToken is StateMachine, AccessControl, ERC20 {
+interface Mergable {
+    function merge(address _mergePartner, address childAssetTokenFactoryAddress, string calldata childName, string calldata childSymbol, uint childNumberOfSupervisors, address childElectionFactoryAddress, uint ratioFollower, uint ratioInitiator) external;          // calledby that.CEO 
+    function mergeRequested(bytes calldata data) external;
+    function mergeAccepted(bytes32 dataHash) external returns(address);
+    function acceptMerge() external returns (bool); 
+}
 
+
+// TODO: interface
+contract AssetToken is Mergable, StateMachine, AccessControl, ERC20 {
+
+    // DURATIONS / TIMEOUTS
     uint32 public constant ELECTION_PROPOSAL_DURATION = 60*15;
     uint32 public constant ELECTION_VOTE_DURATION = 60*15;
     uint32 public constant RESTART_ELECTION_DURATION = 365 days;
     uint32 public constant RETRYS_CEO_ELECTION = 2;
     uint32 public constant RESTART_DIVIDEND_CYCLE = 365 days;
     uint32 public constant DIVIDENDS_PROPOSED_CYCLE = 1 days;
+    uint32 public constant MERGE_ACCEPTANCE_DURATION = 1 days;
 
+
+    // ROLES
     enum Role {
         SHAREHOLDER,
         SUPERVISOR,
-        CEO
+        CEO,
+        MERGECONTRACT
     }
 
     uint[] internal CEO = [uint(Role.CEO)];
     uint[] internal SUPERVISOR = [uint(Role.SUPERVISOR)];
     uint[] internal SHAREHOLDER = [uint(Role.SHAREHOLDER)];
+    uint[] internal MERGECONTRACT = [uint(Role.MERGECONTRACT)];
 
     using EnumerableSet for EnumerableSet.AddressSet;
-    EnumerableSet.AddressSet internal Shareholders;
+    EnumerableSet.AddressSet private Shareholders;
     
     address public currentCEO;
     address[] public supervisors;   
-    string internal assetName;
-    string internal assetSymbol;
+    //string internal assetName;
+    //string internal assetSymbol;
     uint internal numberOfSupervisors;         
     
     // Election Cycle
@@ -59,24 +76,219 @@ contract AssetToken is StateMachine, AccessControl, ERC20 {
     mapping(address => uint8) internal approved;                //by supervisor
 
 
+    // TODO ADD Weiterleitung
+
+    // Merge Cycle
+    uint startMergeTime;
+
+    address public mergePartner;
+    address public childAssetToken;
+
+    address  public childElectionFactoryAddress;
+    address public childAssetTokenFactoryAddress;
+
+
+    string childName;
+    string childSymbol;
+    uint childNumberOfSupervisors;
+
+    uint ratioFollower;
+    uint ratioInitiator;
+
+    event MergerRequested(address);
+    event MergeSuccess(address, address);
+
+    address immutable parentFollower;
+    address immutable parentInitiator;
+    
+    uint immutable followerRatioParent; // TODO: Set immutable
+    uint immutable initiatorRatioParent;
+
+    bool mergeFinished;
+    //InitiatorToken Functions
+
+    mapping(address => bool) initFromParent;
+
+    //initBalanceFromParentToken let Shareholders claim Tokens after a successfull Merge based on his Balance in Parent Contracts
+    function initBalanceFromParentToken() external {
+        if (initFromParent[msg.sender] != true && parentFollower != address(0) && parentInitiator != address(0)) {
+            initFromParent[msg.sender] = true;
+
+            IERC20 tokenFollower = IERC20(parentFollower);
+            IERC20 tokenInitiator = IERC20(parentInitiator);
+
+            uint balanceOnParent0 = tokenFollower.balanceOf(msg.sender);
+            uint balanceOnParent1 = tokenInitiator.balanceOf(msg.sender);
+
+            if(balanceOnParent0 > 0) {
+                transfer(address(this), balanceOnParent0 * followerRatioParent);
+            }
+
+            if(balanceOnParent1 > 0) {
+                transfer(address(this), balanceOnParent1 * initiatorRatioParent);  
+            }
+        }
+    }
+
+    //
+    function merge(address _mergePartner, address _childAssetTokenFactoryAddress, string calldata _childName, string calldata _childSymbol, uint _childNumberOfSupervisors, address _childElectionFactoryAddress, uint _ratioFollower, uint _ratioInitiator) access(CEO) state(this.start.selector) override external {
+        mergePartner = _mergePartner;
+
+        // Set Conditions in Initiator
+        childAssetTokenFactoryAddress = _childAssetTokenFactoryAddress;
+
+        childName = _childName;
+        childSymbol = _childSymbol;
+        childNumberOfSupervisors = _childNumberOfSupervisors;
+        childElectionFactoryAddress = _childElectionFactoryAddress;
+        ratioFollower = _ratioFollower;
+        ratioInitiator = _ratioInitiator;
+
+        bytes memory data = abi.encode(childAssetTokenFactoryAddress, childName, childSymbol, childNumberOfSupervisors, childElectionFactoryAddress, ratioFollower, ratioInitiator);
+
+        // Propose Conditions to Contract to merge with
+        Mergable(mergePartner).mergeRequested(data);
+    }
+
+
+    // mergeAccepted
+    function mergeAccepted(bytes32 _dataHash) state(this.mergeInit.selector) override external returns(address) {              // move to mergeInit if !=0
+        require(msg.sender == mergePartner, "only callable by Merge Target");
+
+        // ensure Origin is acceptMerge()
+        require(Mergable(mergePartner).acceptMerge(), "only callable by acceptMerge()");
+
+        // Calculate Hash to proof proposed Conditions have not been changed
+        require(_dataHash == keccak256(abi.encodePacked(childAssetTokenFactoryAddress, childName, childSymbol, childNumberOfSupervisors, childElectionFactoryAddress, ratioFollower, ratioInitiator)), "Conditions are not allowed to change!");
+        
+        // calculate initialSupply
+        uint followerTotalSupply = IERC20(mergePartner).totalSupply();
+        uint newInitialSupply = followerTotalSupply * ratioFollower + totalSupply() * ratioInitiator;
+       
+        childAssetToken = IAssetTokenFactory(childAssetTokenFactoryAddress).createAssetToken(newInitialSupply, childName, childSymbol, childNumberOfSupervisors, childElectionFactoryAddress, ratioFollower, ratioInitiator, mergePartner, address(this));
+
+        // send Ether Balance to newly created Child Contract
+        payable(childAssetToken).transfer(address(this).balance);
+
+
+        // TODO: set Proxy with new Address
+
+        // set stop
+        mergeFinished = true; 
+        emit MergeSuccess(address(this), mergePartner);
+     
+        return childAssetToken;
+    }
+
+    //FollowerToken Functions
+
+    // mergeRequested called by thisToken to name MergeRequest 
+    function mergeRequested(bytes calldata data) state(this.start.selector) override external {          // access(MERGECONTRACT)
+        require(mergePartner == address(0), "mergeRequest already Set");
+        mergePartner = msg.sender;                                      
+
+        // Set Conditions in Follower
+        (childAssetTokenFactoryAddress, childName, childSymbol, childNumberOfSupervisors, childElectionFactoryAddress, ratioFollower, ratioInitiator) = abi.decode(data,(address, string ,string, uint, address, uint, uint));
+        
+
+        emit MergerRequested(mergePartner);
+    }
+
+
+    bool private origin;
+
+    // acceptMerge called by followerCEO to aggree to received conditions by Creating new TokenContract 
+    function acceptMerge() state(this.mergeInit.selector) access(CEO) override external returns(bool) {
+        if(!origin) {
+            origin = true;
+            _acceptMerge();     // internal call acceptMerge which requires return to be true;
+            origin = false;
+        }
+
+        return origin;
+    }
+
+
+    function _acceptMerge() private {
+        require(mergePartner != address(0));                            // Implizit schon garantiert durch übergang
+
+        bytes32 conditionHash = keccak256(abi.encodePacked(childAssetTokenFactoryAddress, childName, childSymbol, childNumberOfSupervisors, childElectionFactoryAddress, ratioFollower, ratioInitiator));
+
+        childAssetToken = Mergable(mergePartner).mergeAccepted(conditionHash);
+        
+        // transfer Ether Balance to Child
+        payable(childAssetToken).transfer(address(this).balance);
+
+        // set Proxy with new Address
+
+
+        // set stop
+        mergeFinished = true; 
+        emit MergeSuccess(address(this), mergePartner);
+    }
+
+    // State MergeInit
+    function mergeInit() stateTransition(0) external {}
+
+
+
+    //Condition
+    function timeoutMerge() internal view returns(bool) {
+        return MERGE_ACCEPTANCE_DURATION + startMergeTime >= block.timestamp;
+    }
+
+    function mergeSuccess() internal view returns(bool) {
+        return mergeFinished;
+    }
+
+
+    //Transition
+    function mergeInit_start() condition(timeoutMerge) internal {
+    }
+
+    function mergeInit_stop() condition(mergeSuccess) internal {
+    }
+
+    // State Stop
+    function stop() stateTransition(0) external {}
+
+
+    // State Start
+
+    //Condition
+    function addressSet() internal view returns(bool) {
+        return mergePartner != address(0);
+    }
+
+    // Transition
+    function start_mergeInit() condition(addressSet) internal {
+        startMergeTime = block.timestamp;
+    }
+    
     // constructor sets Company Name, Proposal for SB
-    constructor(address _electionFactoryAddress, uint _initialSupply, string memory _name, string memory _symbol, uint _numberOfSupervisors)
+    constructor( uint _initialSupply, string memory _name, string memory _symbol, uint _numberOfSupervisors, address _electionFactoryAddress, uint _followerRatio , uint _initiatorRatio, address _parentFollower, address _parentInitiator)
      StateMachine() ERC20(_name, _symbol) public {
         
         require(_numberOfSupervisors%2 == 1);
         numberOfSupervisors = _numberOfSupervisors;
-        assetName = _name;
-        assetSymbol = _symbol;
+        //assetName = _name;
+        //assetSymbol = _symbol;
         
         _mint(msg.sender, _initialSupply);
         Shareholders.add(msg.sender);
 
         electionFactoryAddress = _electionFactoryAddress;
+        followerRatioParent = _followerRatio;
+        initiatorRatioParent = _initiatorRatio;
+        parentFollower = _parentFollower;
+        parentInitiator = _parentInitiator;
+ 
 
+        // StateMachine Setup: registerState("StateName" , "State" , "StateTransition" ,  "NextState")
         registerState("START", this.start.selector, start_electionStarted, this.electionStarted.selector);
         registerState("START", this.start.selector, start_dividendProposed, this.dividendProposed.selector);
 
-         registerState("DIVIDEND_PROPOSED",this.dividendProposed.selector, dividendProposed_start_reject, this.start.selector);
+        registerState("DIVIDEND_PROPOSED",this.dividendProposed.selector, dividendProposed_start_reject, this.start.selector);
         registerState("DIVIDEND_PROPOSED",this.dividendProposed.selector, dividendProposed_start_success, this.start.selector);
         
         registerState("ELECTION_STARTED", this.electionStarted.selector, electionStarted_electionStarted, this.electionStarted.selector);
@@ -86,8 +298,12 @@ contract AssetToken is StateMachine, AccessControl, ERC20 {
         registerState("CEO_ELECTION_STARTED", this.ceoElectionStarted.selector, ceoElectionStarted_start_success, this.start.selector);
         registerState("CEO_ELECTION_STARTED", this.ceoElectionStarted.selector, ceoElectionStarted_ceoElectionStarted, this.ceoElectionStarted.selector);
         registerState("CEO_ELECTION_STARTED", this.ceoElectionStarted.selector, ceoElectionStarted_start_reset, this.start.selector);
+
+        registerState("MERGE_INIT", this.mergeInit.selector, mergeInit_start,this.start.selector); 
+        registerState("MERGE_INIT", this.mergeInit.selector, mergeInit_stop,this.stop.selector); 
         
-       
+        registerState("STOP", this.stop.selector);
+
     }
 
     function transfer(address recipient, uint amount) override public returns(bool) {
@@ -114,6 +330,8 @@ contract AssetToken is StateMachine, AccessControl, ERC20 {
 
         return true;
     }
+
+
 
     //TODO: CHECK next() in Function
     // befor better because of timed Conditions State 
@@ -197,7 +415,7 @@ contract AssetToken is StateMachine, AccessControl, ERC20 {
             election.finishRegisterPhase();
     }
 
-    function start_dividendProposed() condition(proposedANDTimePassed) internal {   // What if CEO dosen't propose Dividend >> Supervisor can start reelection
+    function start_dividendProposed() condition(proposedANDTimePassed) internal {           // What if CEO dosen't propose Dividend >> Supervisor can start reelection
         delete proposed;
         dividendStartedTime = block.timestamp;
     }

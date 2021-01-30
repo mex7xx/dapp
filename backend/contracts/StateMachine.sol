@@ -96,7 +96,6 @@ contract StateMachine is IStateMachine {
         require(!taken, "no reentrancy allowed"); // Reentrancy Protection 
         
         bytes4 oldState = currentState;
-        emit Debug(currentState);
         (bool success, bytes memory data) = address(this).call(abi.encodeWithSelector(currentState));  //call wegen msg.sender == contract statemachine
         if (!success) {
             emit Debug(currentState);
