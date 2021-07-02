@@ -12,31 +12,8 @@ let electionFactoryContract = artifacts.require("ElectionFactory.sol")
 let assetTokenContract = artifacts.require("AssetToken.sol");
 
 
-contract('ElectionFactory', (accounts) => {
-    let election;
-    contract('Test Factory', () => {
-        xit('testing', async () => {
-            let factory = await electionFactoryContract.deployed();
-            let electionAddress = await factory.createElection(1,"0",10, 10);
-            let add = await factory.add();
-            console.log(add);
 
-            let assetToken = await assetTokenContract.deployed();
-            await assetToken.setElection();
-            add = await assetToken.election();
-            console.log(add);
-
-
-            assetToken.next();
-
-            election = await electionContract.at(add);
-            console.log(await election.currentState());
-        });
-    })
-});
-
-
-contract('Election', (accounts) => {
+contract.skip('Election', (accounts) => {
 
     let election;
 
@@ -176,4 +153,29 @@ contract('Election', (accounts) => {
         });
     });
 
+});
+
+
+
+contract.skip('ElectionFactory', (accounts) => {
+    let election;
+    contract('Test Factory', () => {
+        it('testing', async () => {
+            let factory = await electionFactoryContract.deployed();
+            let electionAddress = await factory.createElection(1,"0",10, 10);
+            let add = await factory.add();
+            console.log(add);
+
+            let assetToken = await assetTokenContract.deployed();
+            await assetToken.setElection();
+            add = await assetToken.election();
+            console.log(add);
+
+
+            assetToken.next();
+
+            election = await electionContract.at(add);
+            console.log(await election.currentState());
+        });
+    })
 });

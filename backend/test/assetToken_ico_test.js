@@ -28,10 +28,11 @@ contract.skip('ICO', (accounts) => {
         });
 
         it('test transfer', async () => {
+            let balanceBefore = web3.utils.fromWei(await web3.eth.getBalance(accounts[4]), 'ether');
             await web3.eth.sendTransaction({from: accounts[3], to: accounts[4], value: web3.utils.toWei('10', 'ether')});
             let balance = web3.utils.fromWei(await web3.eth.getBalance(accounts[4]), 'ether');
 
-            assert.strictEqual(balance, '110');
+            assert.strictEqual(Number(balanceBefore), Number(balance) - 10);
 
             await web3.eth.sendTransaction({from: accounts[3], to: assetToken.address, value: web3.utils.toWei('10', 'ether')});
         });
@@ -48,7 +49,7 @@ contract.skip('ICO', (accounts) => {
             //const balance = await assetTokenInstance.balanceOf(accounts[0]);
 
             await icoInstance.invest({from: accounts[1], value: 80});
-            const actualState1 = await icoInstance.currentState()       
+            const actualState1 = await icoInstance.currentState();    
 
             await timeMachine.advanceTimeAndBlock(60);
             await icoInstance.next();
@@ -101,5 +102,10 @@ contract.skip('ICO', (accounts) => {
         });
         
     });
+
+    
+
+
+
 
 });

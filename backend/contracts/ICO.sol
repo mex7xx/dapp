@@ -23,7 +23,7 @@ contract ICO is StateMachine {
         founder = msg.sender;
         ERC20token = IERC20(tokenAddress);
 
-        require(_minNumberOfTokens <= ERC20token.totalSupply());
+        require(_minNumberOfTokens <= ERC20token.totalSupply(), "Total supply");
 
         investingDuration = _fundingDuration;
         pricePerToken = _pricePerToken;

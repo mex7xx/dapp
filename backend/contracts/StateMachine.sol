@@ -25,23 +25,33 @@ contract StateMachine is IStateMachine {
     bool taken = false;
     //string private stateMachineName;
     
+    /*
     constructor() public {        
-        lastTime = block.timestamp;
         //stateMachineName = _stateMachineName;
     }
-    
-    // Modifier for State Dependent Functions
+    */
+    event stateFailure(bytes4, bytes4);
+
+    // Modifier for State Dependent Functions // Update State -> timeouts
     modifier state(bytes4 _requiredState) {
-        next();             // Update State -> timeouts
-        require(currentState == _requiredState, "Function not callable in current State");
+        next();                                             
+
+        bool correctState = currentState == _requiredState;
+        if(!correctState){
+            emit stateFailure(currentState,_requiredState);
+            revert("Function not callable in current State");
+        }
+        
         _;
-        next();             // Update State -> FunctionCalls
+
+        next();            
     }
+     // Update State -> FunctionCalls
     
     function getCurrentStateName() external view returns (string memory) {
         return stateNames[currentState];
     }
-
+    
     function registerState(string memory name, bytes4 stateSig) internal {
         require(stateSig != 0);
         if(!currentStateSet) {
@@ -89,16 +99,16 @@ contract StateMachine is IStateMachine {
         }
     }
 
-    event Debug(bytes4);
+    event DebugState(bytes4);
 
-    // Drives the State Machine - callable by everybody 
+    // Drives the State Machine - callable by everybody // since Ethereum has itself no lifeliness 
     function next() override public virtual {
         require(!taken, "no reentrancy allowed"); // Reentrancy Protection 
         
         bytes4 oldState = currentState;
         (bool success, bytes memory data) = address(this).call(abi.encodeWithSelector(currentState));  //call wegen msg.sender == contract statemachine
         if (!success) {
-            emit Debug(currentState);
+            emit DebugState(currentState);
             revert("State Machine call failed");
         }
 

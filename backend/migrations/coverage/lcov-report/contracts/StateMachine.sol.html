@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>Code coverage report for contracts/StateMachine.sol</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../prettify.css" />
+    <link rel="stylesheet" href="../base.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+<body>
+<div class='wrapper'>
+  <div class='pad1'>
+    <h1>
+      <a href="../index.html">all files</a> / <a href="index.html">contracts/</a> StateMachine.sol
+    </h1>
+    <div class='clearfix'>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">0% </span>
+        <span class="quiet">Statements</span>
+        <span class='fraction'>0/33</span>
+      </div>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">0% </span>
+        <span class="quiet">Branches</span>
+        <span class='fraction'>0/24</span>
+      </div>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">0% </span>
+        <span class="quiet">Functions</span>
+        <span class='fraction'>0/7</span>
+      </div>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">0% </span>
+        <span class="quiet">Lines</span>
+        <span class='fraction'>0/37</span>
+      </div>
+    </div>
+  </div>
+  <div class='status-line low'></div>
+<pre><table class="coverage">
+<tr><td class="line-count quiet">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+97
+98
+99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117</td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">pragma solidity ^0.6.3;
+&nbsp;
+&nbsp;
+interface IStateMachine {
+    function next() external;
+}
+&nbsp;
+contract StateMachine is IStateMachine {
+    
+    struct Transition {
+        function() fu;
+        bytes4 nextState;
+    }
+    
+    event NewStateEntered(bytes4, string); 
+    
+    bytes4 public currentState;
+    mapping(bytes4 =&gt; string) public stateNames;
+    mapping(bytes4 =&gt; Transition[]) transitions;
+    
+&nbsp;
+    bool globalReturn;
+    uint lastTime;
+    bool currentStateSet = false;
+    bool taken = false;
+    //string private stateMachineName;
+    
+    /*
+    constructor() public {        
+        //stateMachineName = _stateMachineName;
+    }
+    */
+    
+    // Modifier for State Dependent Functions
+<span class="fstat-no" title="function not covered" >    modifier state(bytes4 _requiredState) {</span>
+<span class="cstat-no" title="statement not covered" >        next()</span>;             // Update State -&gt; timeouts
+<span class="cstat-no" title="statement not covered" >        require(currentState == _requiredState, "Function not callable in current State")</span>;
+        _;
+<span class="cstat-no" title="statement not covered" >        next()</span>;             // Update State -&gt; FunctionCalls
+    }
+    
+<span class="fstat-no" title="function not covered" >    function getCurrentStateName() external view returns (string memory) {</span>
+<span class="cstat-no" title="statement not covered" >        return stateNames[currentState];</span>
+    }
+    
+<span class="fstat-no" title="function not covered" >    function registerState(string memory name, bytes4 stateSig) internal {</span>
+<span class="cstat-no" title="statement not covered" >        require(stateSig != 0)</span>;
+<span class="cstat-no" title="statement not covered" >        if(!currentStateSet) {</span>
+<span class="cstat-no" title="statement not covered" >           currentStateSet = true</span>;
+<span class="cstat-no" title="statement not covered" >           currentState = stateSig</span>;
+        }
+<span class="cstat-no" title="statement not covered" >        stateNames[stateSig] = name</span>;
+    }
+&nbsp;
+<span class="fstat-no" title="function not covered" >    function registerState(string memory name, bytes4 stateSig, function() fu, bytes4 nextState) internal {</span>
+<span class="cstat-no" title="statement not covered" >        registerState(name, stateSig)</span>;
+<span class="cstat-no" title="statement not covered" >        transitions[stateSig].push(Transition(fu, nextState))</span>;
+    }
+&nbsp;
+    // Modifier for State Transition Functions
+<span class="fstat-no" title="function not covered" >    modifier stateTransition(uint _releaseStateAfterSeconds) {</span>
+        // Time Restriction
+<span class="cstat-no" title="statement not covered" >        require(block.timestamp &gt;= lastTime + _releaseStateAfterSeconds * 1 seconds, "minimal time passed after last State Transition not reached yet")</span>;
+        
+        // 
+<span class="cstat-no" title="statement not covered" >        require(msg.sig == currentState, "Transition not callable in current State")</span>; 
+        
+        // Reject all calls coming from outside the contract
+<span class="cstat-no" title="statement not covered" >        require(msg.sender == address(this), "Transition must be called from inside the State Machine")</span>;
+&nbsp;
+        _;
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        uint l = transitions[currentState].length;</span>
+<span class="cstat-no" title="statement not covered" >        for(uint i=0; i &lt; l; i++) {</span>
+<span class="cstat-no" title="statement not covered" >            globalReturn = true</span>; 
+<span class="cstat-no" title="statement not covered" >            transitions[currentState][i].fu()</span>;
+&nbsp;
+<span class="cstat-no" title="statement not covered" >            if(globalReturn) {</span>
+<span class="cstat-no" title="statement not covered" >                currentState = transitions[currentState][i].nextState</span>;
+                break;
+            }
+        }
+    }
+    
+<span class="fstat-no" title="function not covered" >    modifier condition(function() view returns (bool) cond ) {</span>
+<span class="cstat-no" title="statement not covered" >        if(cond()) {</span>
+            _;
+        } else {
+<span class="cstat-no" title="statement not covered" >            globalReturn = false</span>;
+        }
+    }
+&nbsp;
+    event Debug(bytes4);
+&nbsp;
+    // Drives the State Machine - callable by everybody 
+<span class="fstat-no" title="function not covered" >    function next() override public virtual {</span>
+<span class="cstat-no" title="statement not covered" >        require(!taken, "no reentrancy allowed")</span>; // Reentrancy Protection 
+        
+<span class="cstat-no" title="statement not covered" >        bytes4 oldState = currentState;</span>
+<span class="cstat-no" title="statement not covered" >        (bool success, bytes memory data) = address(this).call(abi.encodeWithSelector(currentState));</span>  //call wegen msg.sender == contract statemachine
+<span class="cstat-no" title="statement not covered" >        if (!success) {</span>
+<span class="cstat-no" title="statement not covered" >            emit Debug(currentState);</span>
+<span class="cstat-no" title="statement not covered" >            revert("State Machine call failed")</span>;
+        }
+&nbsp;
+        //currentState = abi.decode(data,(bytes4));             // Ceck if bytes4 can be decoded
+        
+<span class="cstat-no" title="statement not covered" >        require(currentState != 0, "Fail State entered")</span>;       // 0 == FailState
+        
+<span class="cstat-no" title="statement not covered" >        if(currentState != oldState) {</span>
+<span class="cstat-no" title="statement not covered" >            lastTime = block.timestamp</span>;                         // set if State Transition happend
+<span class="cstat-no" title="statement not covered" >            emit NewStateEntered(currentState, stateNames[currentState]);</span>
+        }
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        taken = false</span>;
+    }
+}</pre></td></tr>
+</table></pre>
+<div class='push'></div><!-- for sticky footer -->
+</div><!-- /wrapper -->
+<div class='footer quiet pad2 space-top1 center small'>
+  Code coverage
+  generated by <a href="http://istanbul-js.org/" target="_blank">istanbul</a> at Fri May 21 2021 19:25:25 GMT+0200 (Mitteleuropäische Sommerzeit)
+</div>
+</div>
+<script src="../prettify.js"></script>
+<script>
+window.onload = function () {
+        if (typeof prettyPrint === 'function') {
+            prettyPrint();
+        }
+};
+</script>
+<script src="../sorter.js"></script>
+</body>
+</html>

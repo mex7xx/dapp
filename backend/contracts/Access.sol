@@ -1,7 +1,15 @@
 pragma solidity ^0.6.3;
 
+/*
+AccessControll stellt Modifier (access) für externe Smart-Contract Funktionen bereit die zugriffsgeschützt sein sollen. Wie in Ethereum üblich werden die Ethereum-Adressen als Kennung für die Nutzer verwendet. 
+Es lassen sich verschiede Rollen den einzelnen Adressen zuweisen. Bei einer mit dem Modifier access versehenen Funktion wird geprüft ob die Adresse die benötigten Zugriffsrechte zugewiesen bekommen hat ansonsten wird die Transaktion rückgängig gemacht.
+*/
+
 contract AccessControl {
-    mapping(address => mapping(uint => bool)) associatedRoles;  //  (addr, role) => associated  // TODO: Register Function & Check what happens if not in map.
+
+    event AccessFor(address, bool); 
+    // Address
+    mapping(address => mapping(uint => bool)) associatedRoles;      //  (addr, role) => associated  // TODO: Register Function & Check what happens if not in map.
 
     // TODO: Make to function to provide contract as Lib // new modifier in 
     modifier access(uint[] memory allowedRoles) {
@@ -12,6 +20,7 @@ contract AccessControl {
                 break;
             }
         }
+        emit AccessFor(msg.sender, allowed);
         require(allowed, "no access rights");
         _;
     }
